@@ -2,18 +2,19 @@ module vk;
 
 import std::collections::elastic_array;
 import std::collections::list;
+import std::collections::set;
 import std::collections::maybe;
 import std::math;
 import util;
 import logger;
 
-const MAX_QUEUE_CNT = 4u;
 const MAX_PHYS_DEVS = 10u;
 const MAX_FORMATS = 128u;
 const MAX_PRESENT_MODES = 8u;
 const MAX_DEVICE_REQ_EXT = 10u;
 const MAX_DEVICE_AVAIL_EXT = 128u;
 const MAX_QUEUE_FAMILIES = 16u;
+const MAX_QUEUE_CNT = 4u;
 
 struct Device {
 	SwapchainSupportInfo				swapchain_supp_info;
@@ -23,6 +24,7 @@ struct Device {
     VkQueue                             graphics_queue;
     VkQueue                             present_queue;
     VkQueue                             transfer_queue;
+    VkQueue                             compute_queue;
 	QueueFamilyIndices					queue_family_indices;
     VkFormat                            depth_fmt;
 }
@@ -49,7 +51,7 @@ fn bool init_device(VkContext* context)
 	    return false;
 	}
 
-	ElasticArray{VkPhysicalDevice, MAX_PHYS_DEVS} phys_devs;
+	ElasticArray{VkPhysicalDevice, MAX_PHYS_DEVS} phys_devs @noinit;
 	phys_devs.resize(math::min(MAX_PHYS_DEVS, device_cnt));
 
 	vk_check(vkEnumeratePhysicalDevices(context.instance, &device_cnt, phys_devs.data()));
@@ -57,31 +59,97 @@ fn bool init_device(VkContext* context)
 	ElasticArray{CChar*, MAX_DEVICE_REQ_EXT} device_req_extensions;
 	device_req_extensions.push_all({ (CChar*)VK_KHR_SWAPCHAIN_EXTENSION_NAME, (CChar*)VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME, (CChar*)VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME });
 
-	VkPhysicalDevice selected_device = null;
+	VkPhysicalDevice selected_phys_dev = null;
 	SwapchainSupportInfo swapchain_supp_info;
 	CChar*[] req_ext_view = device_req_extensions.array_view();
 
 	foreach (dev : phys_devs.array_view()) {
 		if (is_suitable(dev, context.surface, req_ext_view, &swapchain_supp_info)) {
-			selected_device = dev;
+			selected_phys_dev = dev;
+			break;
 		}
 	}
 
-	if (!selected_device) {
+	if (!selected_phys_dev) {
 		logger::@logn(LogLevel.FATAL, "Appropriate device was not found");
 		return false;
 	}
 
-	context.device.phys_dev = selected_device;
+	context.device.phys_dev = selected_phys_dev;
 
 	if (!context.device.detect_depth_format()) {
 		logger::@logn(LogLevel.FATAL, "Suitable depth format was not detected");
 		return false;
 	}
 
-	// TODO: Create logical device
+	if (!find_queue_families(selected_phys_dev, &context.device.queue_family_indices, context.surface)) {
+		logger::@logn(LogLevel.FATAL, "Failed to find required queue families on the device");
+		return false;
+	}
 
-	return true;
+	vkGetPhysicalDeviceMemoryProperties(selected_phys_dev, &context.device.mem_props);
+
+	ElasticArray{uint, MAX_QUEUE_CNT} queue_indices @noinit;
+	retrieve_unique_queue_creation_indices(context.device.queue_family_indices, &queue_indices);
+
+	ElasticArray{VkDeviceQueueCreateInfo, MAX_QUEUE_CNT} queue_infos @noinit;
+	queue_infos.resize(queue_indices.size);
+
+	ElasticArray{float, MAX_QUEUE_CNT} queue_priorities @noinit;
+	queue_priorities.push_all({ 1.0, 1.0, 1.0, 1.0 });
+
+	foreach (uint i, &info : queue_infos.array_view()) {
+		info.s_type = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        info.p_next = null;
+        info.queue_family_index = queue_indices[i];
+        info.queue_count = 1;
+        info.flags = 0;
+        info.p_queue_priorities = &queue_priorities[i];
+	}
+
+    VkPhysicalDeviceFeatures device_features = {
+        .sampler_anisotropy = VK_TRUE,
+    };
+
+    VkPhysicalDeviceVulkan13Features device_features13 = {
+        .s_type = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .dynamic_rendering = VK_TRUE,
+        .synchronization_2 = VK_TRUE,
+    };
+
+    VkPhysicalDeviceVulkan12Features device_features12 = {
+        .s_type = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .p_next = &device_features13,
+        .buffer_device_address = VK_TRUE,
+        .descriptor_indexing = VK_TRUE,
+    };
+
+    VkDeviceCreateInfo device_create_info = {
+        .s_type = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .p_next = &device_features12,
+        .queue_create_info_count = (uint)queue_infos.size,
+        .p_queue_create_infos = queue_infos.data(),
+        .enabled_extension_count = (uint)device_req_extensions.size,
+        .pp_enabled_extension_names = device_req_extensions.data(),
+        .p_enabled_features = &device_features,
+    };
+
+    vk_check(vkCreateDevice(context.device.phys_dev, &device_create_info, null, &context.device.log_dev));
+    volk_load_device(context.device.log_dev);
+
+    if (context.device.queue_family_indices.graphics == context.device.queue_family_indices.present) {
+        VkQueue shared_queue @noinit;
+        vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.graphics, 0, &shared_queue);
+        context.device.graphics_queue = shared_queue;
+        context.device.present_queue = shared_queue;
+    } else {
+        vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.graphics, 0, &context.device.graphics_queue);
+        vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.present, 0, &context.device.present_queue);
+    }
+    vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.transfer, 0, &context.device.transfer_queue);
+    vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.compute, 0, &context.device.compute_queue);
+
+    return true;
 }
 
 fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_extensions, SwapchainSupportInfo* out_swapchain_supp) @private
@@ -107,9 +175,6 @@ fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_ext
 	avail_extensions.set_size(avail_ext_cnt);
 	defer avail_extensions.free();
 
-	// avail_ext_cnt = math::min(avail_ext_cnt, MAX_DEVICE_AVAIL_EXT);
-	// avail_extensions.resize(avail_ext_cnt);
-	
 	vk_check(vkEnumerateDeviceExtensionProperties(dev, null, &avail_ext_cnt, &avail_extensions[0]));
 
 	foreach (req_ext : req_extensions) {
@@ -202,33 +267,33 @@ fn bool find_queue_families(
 
 	Maybe{uint[]} not_needed_indices = maybe::EMPTY;
 	{
-		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, 2, VK_QUEUE_GRAPHICS_BIT, 0, VK_QUEUE_TRANSFER_BIT, not_needed_indices);
+		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, VK_QUEUE_GRAPHICS_BIT, 0, VK_QUEUE_TRANSFER_BIT, 1, not_needed_indices);
 	    if (try uint ind = maybe_ind.get()) {
 	        out_indices.graphics = (char)ind;
 	    } else {
-	        logger::@logn(LogLevel.FATAL, "appropriate queue for Graphics was not found on selected vulkan device");
+	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Graphics was not found on selected vulkan device");
 	        return false;
 	    }
 	}
 
     {
         not_needed_indices = maybe::value({ out_indices.graphics });
-		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, 1, VK_QUEUE_TRANSFER_BIT, 0, VK_QUEUE_GRAPHICS_BIT, not_needed_indices);
+		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, VK_QUEUE_TRANSFER_BIT, 0, VK_QUEUE_GRAPHICS_BIT, 1, not_needed_indices);
 	    if (try uint ind = maybe_ind.get()) {
             out_indices.transfer = (char)ind;
         } else {
-	        logger::@logn(LogLevel.FATAL, "appropriate queue for Transfer was not found on selected vulkan device");
+	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Transfer was not found on selected vulkan device");
             return false;
         }
     }
 
     {
         not_needed_indices = maybe::value({ out_indices.graphics, out_indices.transfer });
-		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, 1, VK_QUEUE_COMPUTE_BIT, VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT, not_needed_indices);
+		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, VK_QUEUE_COMPUTE_BIT, VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT, 1, not_needed_indices);
         if (try uint ind = maybe_ind.get()) {
             out_indices.compute = (char)ind;
         } else {
-	        logger::@logn(LogLevel.FATAL, "appropriate queue for Computing was not found on selected vulkan device");
+	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Computing was not found on selected vulkan device");
             return false;
         }
     }
@@ -239,7 +304,7 @@ fn bool find_queue_families(
         if (try uint ind = maybe_ind.get()) {
             out_indices.present = (char)ind;
         } else {
-            logger::@logn(LogLevel.FATAL, "appropriate queue for Presentation was not found on selected vulkan device");
+            logger::@logn(LogLevel.FATAL, "Appropriate queue for Presentation was not found on selected vulkan device");
             return false;
         }
     }
@@ -260,9 +325,7 @@ fn Maybe{uint} pick_queue_family(
     Maybe{uint} result_index = maybe::EMPTY;
     uint curr_score @noinit;
 
-	for (uint i = 0; i < queue_families.len; ++i) {
-		VkQueueFamilyProperties* family = &queue_families[i];
-
+	foreach (uint i, &family : queue_families) {
         if (((family.queue_flags & required_flag) != required_flag) || (family.queue_count < min_queue_count)) {
             continue;
         }
@@ -310,9 +373,7 @@ fn Maybe{uint} pick_presentation_queue_family(
     Maybe{uint} result_index = maybe::EMPTY;
     uint curr_score @noinit;
 
-	for (uint i = 0; i < queue_families.len; ++i) {
-		VkQueueFamilyProperties* family = &queue_families[i];
-
+	foreach (uint i, &family : queue_families) {
         uint supports_presentation @noinit;
         vk_check(vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surface, &supports_presentation));
 
@@ -346,4 +407,19 @@ fn Maybe{uint} pick_presentation_queue_family(
     }
 
     return result_index;
+}
+
+fn void retrieve_unique_queue_creation_indices(QueueFamilyIndices queue_indices, ElasticArray{uint, MAX_QUEUE_CNT}* out_unique_indices) {
+    HashSet{uint} index_set;
+	index_set.tinit(16, 1.0f);
+    
+	char* indices = (char*)&queue_indices;
+	for (uint i = 0; i < QueueFamilyIndices.sizeof; ++i) {
+ 		index_set.add(indices[i]);
+	}
+
+	uint[] values = index_set.values(tmem);
+	foreach (val : values) {
+		out_unique_indices.push(val);
+	}
 }
