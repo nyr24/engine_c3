@@ -12,3 +12,10 @@ fn Type* ElasticArray.data(&self)
 {
 	return &self.entries;
 }
+
+fn void ElasticArray.fill(&self, Type val)
+{
+	foreach (&entry : self.array_view()) {
+		*entry = val;
+	}
+}

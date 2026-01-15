@@ -25,15 +25,25 @@ struct Device {
     VkQueue                             present_queue;
     VkQueue                             transfer_queue;
     VkQueue                             compute_queue;
-	QueueFamilyIndices					queue_family_indices;
+	QueueIndices						queue_indices;
     VkFormat                            depth_fmt;
 }
 
-struct QueueFamilyIndices {
-    char graphics;
-    char present;
-    char transfer;
-    char compute;
+struct QueueIndex {
+	char fam;
+	char queue;
+}
+
+struct QueueCount {
+	char fam_ind;
+	char cnt;
+}
+
+struct QueueIndices {
+	QueueIndex graphics;
+	QueueIndex present;
+	QueueIndex transfer;
+	QueueIndex compute;
 }
 
 struct SwapchainSupportInfo {
@@ -82,27 +92,36 @@ fn bool init_device(VkContext* context)
 		return false;
 	}
 
-	if (!find_queue_families(selected_phys_dev, &context.device.queue_family_indices, context.surface)) {
+	vkGetPhysicalDeviceMemoryProperties(selected_phys_dev, &context.device.mem_props);
+
+	// Queue Selection
+	ElasticArray{char, MAX_QUEUE_FAMILIES} selected_fam_queue_cnts;
+	
+	if (!find_queue_families(selected_phys_dev, context.surface, &selected_fam_queue_cnts, &context.device.queue_indices)) {
 		logger::@logn(LogLevel.FATAL, "Failed to find required queue families on the device");
 		return false;
 	}
 
-	vkGetPhysicalDeviceMemoryProperties(selected_phys_dev, &context.device.mem_props);
+	ElasticArray{QueueCount, MAX_QUEUE_FAMILIES} compact_queue_fam_cnts @noinit;
+	calc_required_queue_counts(selected_fam_queue_cnts.array_view(), &compact_queue_fam_cnts);
+	
+	ElasticArray{VkDeviceQueueCreateInfo, MAX_QUEUE_FAMILIES} queue_infos @noinit;
+	queue_infos.resize(compact_queue_fam_cnts.size);
 
-	ElasticArray{uint, MAX_QUEUE_CNT} queue_indices @noinit;
-	retrieve_unique_queue_creation_indices(context.device.queue_family_indices, &queue_indices);
-
-	ElasticArray{VkDeviceQueueCreateInfo, MAX_QUEUE_CNT} queue_infos @noinit;
-	queue_infos.resize(queue_indices.size);
-
-	ElasticArray{float, MAX_QUEUE_CNT} queue_priorities @noinit;
-	queue_priorities.push_all({ 1.0, 1.0, 1.0, 1.0 });
+	ElasticArray{float, MAX_QUEUE_FAMILIES} queue_priorities @noinit;
+	queue_priorities.resize(compact_queue_fam_cnts.size);
+	queue_priorities.fill(1.0);
+	QueueIndex* queue_indices_ptr = (QueueIndex*)&context.device.queue_indices;
 
 	foreach (uint i, &info : queue_infos.array_view()) {
+		if (compact_queue_fam_cnts[i].cnt == 0) {
+			continue;
+		}
+	
 		info.s_type = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         info.p_next = null;
-        info.queue_family_index = queue_indices[i];
-        info.queue_count = 1;
+        info.queue_family_index = compact_queue_fam_cnts[i].fam_ind;
+        info.queue_count = compact_queue_fam_cnts[i].cnt;
         info.flags = 0;
         info.p_queue_priorities = &queue_priorities[i];
 	}
@@ -137,17 +156,10 @@ fn bool init_device(VkContext* context)
     vk_check(vkCreateDevice(context.device.phys_dev, &device_create_info, null, &context.device.log_dev));
     volk_load_device(context.device.log_dev);
 
-    if (context.device.queue_family_indices.graphics == context.device.queue_family_indices.present) {
-        VkQueue shared_queue @noinit;
-        vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.graphics, 0, &shared_queue);
-        context.device.graphics_queue = shared_queue;
-        context.device.present_queue = shared_queue;
-    } else {
-        vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.graphics, 0, &context.device.graphics_queue);
-        vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.present, 0, &context.device.present_queue);
-    }
-    vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.transfer, 0, &context.device.transfer_queue);
-    vkGetDeviceQueue(context.device.log_dev, context.device.queue_family_indices.compute, 0, &context.device.compute_queue);
+    vkGetDeviceQueue(context.device.log_dev, context.device.queue_indices.graphics.fam, context.device.queue_indices.graphics.queue, &context.device.transfer_queue);
+    vkGetDeviceQueue(context.device.log_dev, context.device.queue_indices.present.fam, context.device.queue_indices.present.queue, &context.device.present_queue);
+    vkGetDeviceQueue(context.device.log_dev, context.device.queue_indices.transfer.fam, context.device.queue_indices.transfer.queue, &context.device.transfer_queue);
+    vkGetDeviceQueue(context.device.log_dev, context.device.queue_indices.compute.fam, context.device.queue_indices.compute.queue, &context.device.compute_queue);
 
     return true;
 }
@@ -250,26 +262,29 @@ fn bool Device.detect_depth_format(&self) {
 
 fn bool find_queue_families(
 	VkPhysicalDevice dev,
-	QueueFamilyIndices* out_indices,
-	VkSurfaceKHR surface
+	VkSurfaceKHR surface,
+    ElasticArray{char, MAX_QUEUE_FAMILIES}* selected_fam_queue_cnts,
+	QueueIndices* out_indices,
 ) @private
 {
-    uint queue_family_count @noinit;
-    vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, null);
+	uint queue_fam_cnt @noinit;
+    vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_fam_cnt, null);
 
     ElasticArray{VkQueueFamilyProperties, MAX_QUEUE_FAMILIES} queue_families;
-	queue_family_count = math::min(MAX_QUEUE_FAMILIES, queue_family_count);
-	queue_families.resize(queue_family_count);
+	queue_fam_cnt = math::min(MAX_QUEUE_FAMILIES, queue_fam_cnt);
+	queue_families.resize(queue_fam_cnt);
+	selected_fam_queue_cnts.resize(queue_fam_cnt);
+    vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_fam_cnt, queue_families.data());
 	
-    vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, queue_families.data());
-
     VkQueueFamilyProperties[] queue_family_slice = queue_families.array_view();
+    char[] selected_fam_queue_cnts_slice = selected_fam_queue_cnts.array_view();
+	Maybe{char[]} not_needed_fam_indices = maybe::EMPTY;
 
-	Maybe{uint[]} not_needed_indices = maybe::EMPTY;
 	{
-		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, VK_QUEUE_GRAPHICS_BIT, 0, VK_QUEUE_TRANSFER_BIT, 1, not_needed_indices);
-	    if (try uint ind = maybe_ind.get()) {
-	        out_indices.graphics = (char)ind;
+		Maybe{QueueIndex} maybe_queue_ind = pick_queue(queue_family_slice, selected_fam_queue_cnts_slice, VK_QUEUE_GRAPHICS_BIT, 0, VK_QUEUE_TRANSFER_BIT, 1, not_needed_fam_indices);
+	    if (try QueueIndex ind = maybe_queue_ind.get()) {
+	        out_indices.graphics = ind;
+			selected_fam_queue_cnts_slice[ind.fam]++;
 	    } else {
 	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Graphics was not found on selected vulkan device");
 	        return false;
@@ -277,62 +292,64 @@ fn bool find_queue_families(
 	}
 
     {
-        not_needed_indices = maybe::value({ out_indices.graphics });
-		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, VK_QUEUE_TRANSFER_BIT, 0, VK_QUEUE_GRAPHICS_BIT, 1, not_needed_indices);
-	    if (try uint ind = maybe_ind.get()) {
-            out_indices.transfer = (char)ind;
+        not_needed_fam_indices = maybe::value({ out_indices.graphics.fam });
+		Maybe{QueueIndex} maybe_ind = pick_queue(queue_family_slice, selected_fam_queue_cnts_slice, VK_QUEUE_TRANSFER_BIT, 0, VK_QUEUE_GRAPHICS_BIT, 1, not_needed_fam_indices);
+	    if (try QueueIndex ind = maybe_ind.get()) {
+            out_indices.transfer = ind;
+			selected_fam_queue_cnts_slice[ind.fam]++;
         } else {
-	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Transfer was not found on selected vulkan device");
-            return false;
+            out_indices.transfer = out_indices.graphics;
         }
     }
 
     {
-        not_needed_indices = maybe::value({ out_indices.graphics, out_indices.transfer });
-		Maybe{uint} maybe_ind = pick_queue_family(queue_family_slice, VK_QUEUE_COMPUTE_BIT, VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT, 1, not_needed_indices);
-        if (try uint ind = maybe_ind.get()) {
-            out_indices.compute = (char)ind;
+		Maybe{QueueIndex} maybe_ind = pick_presentation_queue(queue_family_slice, selected_fam_queue_cnts_slice, dev, surface, not_needed_fam_indices);
+        if (try QueueIndex ind = maybe_ind.get()) {
+            out_indices.present = ind;
+			selected_fam_queue_cnts_slice[ind.fam]++;
         } else {
-	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Computing was not found on selected vulkan device");
-            return false;
+            out_indices.present = out_indices.graphics;
         }
     }
 
     {
-        not_needed_indices = maybe::value({ out_indices.transfer, out_indices.compute });
-		Maybe{uint} maybe_ind = pick_presentation_queue_family(queue_family_slice, dev, surface, not_needed_indices);
-        if (try uint ind = maybe_ind.get()) {
-            out_indices.present = (char)ind;
+		Maybe{QueueIndex} maybe_ind = pick_queue(queue_family_slice, selected_fam_queue_cnts_slice, VK_QUEUE_COMPUTE_BIT, VK_QUEUE_TRANSFER_BIT, VK_QUEUE_GRAPHICS_BIT, 1, not_needed_fam_indices);
+        if (try QueueIndex ind = maybe_ind.get()) {
+            out_indices.compute = ind;
+			selected_fam_queue_cnts_slice[ind.fam]++;
         } else {
-            logger::@logn(LogLevel.FATAL, "Appropriate queue for Presentation was not found on selected vulkan device");
-            return false;
+			out_indices.compute = out_indices.graphics;
         }
     }
 
     return true;
 }
 
-fn Maybe{uint} pick_queue_family(
+fn Maybe{QueueIndex} pick_queue(
     VkQueueFamilyProperties[] queue_families,
+	char[] selected_fam_queue_cnts,
     VkQueueFlagBits required_flag,
     VkQueueFlagBits optional_flags,
     VkQueueFlagBits not_needed_flags,
     char min_queue_count,
-    Maybe{uint[]} maybe_not_needed_indices,
+    Maybe{char[]} maybe_not_needed_indices,
 )
 {
     uint max_score = 0;
-    Maybe{uint} result_index = maybe::EMPTY;
+    Maybe{QueueIndex} result_index = maybe::EMPTY;
     uint curr_score @noinit;
 
 	foreach (uint i, &family : queue_families) {
-        if (((family.queue_flags & required_flag) != required_flag) || (family.queue_count < min_queue_count)) {
+        if (((family.queue_flags & required_flag) != required_flag)
+			|| (family.queue_count <= selected_fam_queue_cnts[i])
+			|| (family.queue_count < min_queue_count))
+		{
             continue;
         }
 
         curr_score = 1;
 
-        if (try uint[] not_needed_indices = maybe_not_needed_indices.get()) {
+        if (try char[] not_needed_indices = maybe_not_needed_indices.get()) {
             bool found = false;
             foreach (index : not_needed_indices) {
                 if (i == index) {
@@ -354,7 +371,10 @@ fn Maybe{uint} pick_queue_family(
         }
 
         if (curr_score > max_score) {
-            result_index = maybe::value(i);
+            result_index = maybe::value({
+				.fam = (char)i,
+				.queue = selected_fam_queue_cnts[i],
+			});
             max_score = curr_score;
         }
     }
@@ -362,18 +382,23 @@ fn Maybe{uint} pick_queue_family(
     return result_index;
 }
 
-fn Maybe{uint} pick_presentation_queue_family(
+fn Maybe{QueueIndex} pick_presentation_queue(
     VkQueueFamilyProperties[] queue_families,
+	char[] selected_fam_queue_cnts,
     VkPhysicalDevice dev,
     VkSurfaceKHR surface,
-    Maybe{uint[]} maybe_not_needed_indices,
+    Maybe{char[]} maybe_not_needed_indices,
 )
 {
     uint max_score = 0;
-    Maybe{uint} result_index = maybe::EMPTY;
+    Maybe{QueueIndex} result_index = maybe::EMPTY;
     uint curr_score @noinit;
 
 	foreach (uint i, &family : queue_families) {
+		if (family.queue_count <= selected_fam_queue_cnts[i]) {
+			continue;
+		}
+
         uint supports_presentation @noinit;
         vk_check(vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surface, &supports_presentation));
 
@@ -387,7 +412,7 @@ fn Maybe{uint} pick_presentation_queue_family(
             curr_score += 1;
         }
 
-        if (try uint[] not_needed_indices = maybe_not_needed_indices.get()) {
+        if (try char[] not_needed_indices = maybe_not_needed_indices.get()) {
             bool found = false;
             foreach (index : not_needed_indices) {
                 if (i == index) {
@@ -401,7 +426,10 @@ fn Maybe{uint} pick_presentation_queue_family(
         }
 
         if (curr_score > max_score) {
-            result_index = maybe::value(i);
+            result_index = maybe::value({
+				.fam = (char)i,
+				.queue = selected_fam_queue_cnts[i],
+			});
             max_score = curr_score;
         }
     }
@@ -409,17 +437,14 @@ fn Maybe{uint} pick_presentation_queue_family(
     return result_index;
 }
 
-fn void retrieve_unique_queue_creation_indices(QueueFamilyIndices queue_indices, ElasticArray{uint, MAX_QUEUE_CNT}* out_unique_indices) {
-    HashSet{uint} index_set;
-	index_set.tinit(16, 1.0f);
-    
-	char* indices = (char*)&queue_indices;
-	for (uint i = 0; i < QueueFamilyIndices.sizeof; ++i) {
- 		index_set.add(indices[i]);
-	}
-
-	uint[] values = index_set.values(tmem);
-	foreach (val : values) {
-		out_unique_indices.push(val);
+fn void calc_required_queue_counts(char[] selected_queue_cnts, ElasticArray{QueueCount, MAX_QUEUE_FAMILIES}* out_queue_counts) {
+	foreach (char i, char cnt : selected_queue_cnts) {
+		if (cnt == 0) {
+			continue;
+		}
+		out_queue_counts.push({
+			.fam_ind = i,
+			.cnt = cnt,
+		});
 	}
 }

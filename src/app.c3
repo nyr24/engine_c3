@@ -10,6 +10,9 @@ struct AppConfig {
 	uint init_height;
 }
 
+const INIT_WND_WIDTH = 800u;
+const INIT_WND_HEIGHT = 600u;
+
 fn bool init()
 {
 	Window? window = window::create("hello", 800, 600);
@@ -22,8 +25,8 @@ fn bool init()
 	VkContext context @noinit;
 	AppConfig config = {
 		.name = "hello",
-		.init_width = 800,
-		.init_height = 600,
+		.init_width = INIT_WND_WIDTH,
+		.init_height = INIT_WND_HEIGHT,
 	};
 
 	if (catch err = vk::init_vk(&context, &config, &window)) {
