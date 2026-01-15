@@ -1,0 +1,993 @@
+
+module glfw;
+
+const VERSION_MAJOR = 3;
+const VERSION_MINOR = 3;
+const VERSION_REVISION = 10;
+const TRUE = 1;
+const FALSE = 0;
+const RELEASE = 0;
+const PRESS = 1;
+const REPEAT = 2;
+const HAT_CENTERED = 0;
+const HAT_UP = 1;
+const HAT_RIGHT = 2;
+const HAT_DOWN = 4;
+const HAT_LEFT = 8;
+const HAT_RIGHT_UP = (HAT_RIGHT|HAT_UP);
+const HAT_RIGHT_DOWN = (HAT_RIGHT|HAT_DOWN);
+const HAT_LEFT_UP = (HAT_LEFT|HAT_UP);
+const HAT_LEFT_DOWN = (HAT_LEFT|HAT_DOWN);
+const KEY_UNKNOWN = -1;
+const KEY_SPACE = 32;
+const KEY_APOSTROPHE = 39;
+const KEY_COMMA = 44;
+const KEY_MINUS = 45;
+const KEY_PERIOD = 46;
+const KEY_SLASH = 47;
+const KEY_0 = 48;
+const KEY_1 = 49;
+const KEY_2 = 50;
+const KEY_3 = 51;
+const KEY_4 = 52;
+const KEY_5 = 53;
+const KEY_6 = 54;
+const KEY_7 = 55;
+const KEY_8 = 56;
+const KEY_9 = 57;
+const KEY_SEMICOLON = 59;
+const KEY_EQUAL = 61;
+const KEY_A = 65;
+const KEY_B = 66;
+const KEY_C = 67;
+const KEY_D = 68;
+const KEY_E = 69;
+const KEY_F = 70;
+const KEY_G = 71;
+const KEY_H = 72;
+const KEY_I = 73;
+const KEY_J = 74;
+const KEY_K = 75;
+const KEY_L = 76;
+const KEY_M = 77;
+const KEY_N = 78;
+const KEY_O = 79;
+const KEY_P = 80;
+const KEY_Q = 81;
+const KEY_R = 82;
+const KEY_S = 83;
+const KEY_T = 84;
+const KEY_U = 85;
+const KEY_V = 86;
+const KEY_W = 87;
+const KEY_X = 88;
+const KEY_Y = 89;
+const KEY_Z = 90;
+const KEY_LEFT_BRACKET = 91;
+const KEY_BACKSLASH = 92;
+const KEY_RIGHT_BRACKET = 93;
+const KEY_GRAVE_ACCENT = 96;
+const KEY_WORLD_1 = 161;
+const KEY_WORLD_2 = 162;
+const KEY_ESCAPE = 256;
+const KEY_ENTER = 257;
+const KEY_TAB = 258;
+const KEY_BACKSPACE = 259;
+const KEY_INSERT = 260;
+const KEY_DELETE = 261;
+const KEY_RIGHT = 262;
+const KEY_LEFT = 263;
+const KEY_DOWN = 264;
+const KEY_UP = 265;
+const KEY_PAGE_UP = 266;
+const KEY_PAGE_DOWN = 267;
+const KEY_HOME = 268;
+const KEY_END = 269;
+const KEY_CAPS_LOCK = 280;
+const KEY_SCROLL_LOCK = 281;
+const KEY_NUM_LOCK = 282;
+const KEY_PRINT_SCREEN = 283;
+const KEY_PAUSE = 284;
+const KEY_F1 = 290;
+const KEY_F2 = 291;
+const KEY_F3 = 292;
+const KEY_F4 = 293;
+const KEY_F5 = 294;
+const KEY_F6 = 295;
+const KEY_F7 = 296;
+const KEY_F8 = 297;
+const KEY_F9 = 298;
+const KEY_F10 = 299;
+const KEY_F11 = 300;
+const KEY_F12 = 301;
+const KEY_F13 = 302;
+const KEY_F14 = 303;
+const KEY_F15 = 304;
+const KEY_F16 = 305;
+const KEY_F17 = 306;
+const KEY_F18 = 307;
+const KEY_F19 = 308;
+const KEY_F20 = 309;
+const KEY_F21 = 310;
+const KEY_F22 = 311;
+const KEY_F23 = 312;
+const KEY_F24 = 313;
+const KEY_F25 = 314;
+const KEY_KP_0 = 320;
+const KEY_KP_1 = 321;
+const KEY_KP_2 = 322;
+const KEY_KP_3 = 323;
+const KEY_KP_4 = 324;
+const KEY_KP_5 = 325;
+const KEY_KP_6 = 326;
+const KEY_KP_7 = 327;
+const KEY_KP_8 = 328;
+const KEY_KP_9 = 329;
+const KEY_KP_DECIMAL = 330;
+const KEY_KP_DIVIDE = 331;
+const KEY_KP_MULTIPLY = 332;
+const KEY_KP_SUBTRACT = 333;
+const KEY_KP_ADD = 334;
+const KEY_KP_ENTER = 335;
+const KEY_KP_EQUAL = 336;
+const KEY_LEFT_SHIFT = 340;
+const KEY_LEFT_CONTROL = 341;
+const KEY_LEFT_ALT = 342;
+const KEY_LEFT_SUPER = 343;
+const KEY_RIGHT_SHIFT = 344;
+const KEY_RIGHT_CONTROL = 345;
+const KEY_RIGHT_ALT = 346;
+const KEY_RIGHT_SUPER = 347;
+const KEY_MENU = 348;
+const KEY_LAST = KEY_MENU;
+const MOD_SHIFT = 0x0001;
+const MOD_CONTROL = 0x0002;
+const MOD_ALT = 0x0004;
+const MOD_SUPER = 0x0008;
+const MOD_CAPS_LOCK = 0x0010;
+const MOD_NUM_LOCK = 0x0020;
+const MOUSE_BUTTON_1 = 0;
+const MOUSE_BUTTON_2 = 1;
+const MOUSE_BUTTON_3 = 2;
+const MOUSE_BUTTON_4 = 3;
+const MOUSE_BUTTON_5 = 4;
+const MOUSE_BUTTON_6 = 5;
+const MOUSE_BUTTON_7 = 6;
+const MOUSE_BUTTON_8 = 7;
+const MOUSE_BUTTON_LAST = MOUSE_BUTTON_8;
+const MOUSE_BUTTON_LEFT = MOUSE_BUTTON_1;
+const MOUSE_BUTTON_RIGHT = MOUSE_BUTTON_2;
+const MOUSE_BUTTON_MIDDLE = MOUSE_BUTTON_3;
+const JOYSTICK_1 = 0;
+const JOYSTICK_2 = 1;
+const JOYSTICK_3 = 2;
+const JOYSTICK_4 = 3;
+const JOYSTICK_5 = 4;
+const JOYSTICK_6 = 5;
+const JOYSTICK_7 = 6;
+const JOYSTICK_8 = 7;
+const JOYSTICK_9 = 8;
+const JOYSTICK_10 = 9;
+const JOYSTICK_11 = 10;
+const JOYSTICK_12 = 11;
+const JOYSTICK_13 = 12;
+const JOYSTICK_14 = 13;
+const JOYSTICK_15 = 14;
+const JOYSTICK_16 = 15;
+const JOYSTICK_LAST = JOYSTICK_16;
+const GAMEPAD_BUTTON_A = 0;
+const GAMEPAD_BUTTON_B = 1;
+const GAMEPAD_BUTTON_X = 2;
+const GAMEPAD_BUTTON_Y = 3;
+const GAMEPAD_BUTTON_LEFT_BUMPER = 4;
+const GAMEPAD_BUTTON_RIGHT_BUMPER = 5;
+const GAMEPAD_BUTTON_BACK = 6;
+const GAMEPAD_BUTTON_START = 7;
+const GAMEPAD_BUTTON_GUIDE = 8;
+const GAMEPAD_BUTTON_LEFT_THUMB = 9;
+const GAMEPAD_BUTTON_RIGHT_THUMB = 10;
+const GAMEPAD_BUTTON_DPAD_UP = 11;
+const GAMEPAD_BUTTON_DPAD_RIGHT = 12;
+const GAMEPAD_BUTTON_DPAD_DOWN = 13;
+const GAMEPAD_BUTTON_DPAD_LEFT = 14;
+const GAMEPAD_BUTTON_LAST = GAMEPAD_BUTTON_DPAD_LEFT;
+const GAMEPAD_BUTTON_CROSS = GAMEPAD_BUTTON_A;
+const GAMEPAD_BUTTON_CIRCLE = GAMEPAD_BUTTON_B;
+const GAMEPAD_BUTTON_SQUARE = GAMEPAD_BUTTON_X;
+const GAMEPAD_BUTTON_TRIANGLE = GAMEPAD_BUTTON_Y;
+const GAMEPAD_AXIS_LEFT_X = 0;
+const GAMEPAD_AXIS_LEFT_Y = 1;
+const GAMEPAD_AXIS_RIGHT_X = 2;
+const GAMEPAD_AXIS_RIGHT_Y = 3;
+const GAMEPAD_AXIS_LEFT_TRIGGER = 4;
+const GAMEPAD_AXIS_RIGHT_TRIGGER = 5;
+const GAMEPAD_AXIS_LAST = GAMEPAD_AXIS_RIGHT_TRIGGER;
+const NO_ERROR = 0;
+const NOT_INITIALIZED = 0x00010001;
+const NO_CURRENT_CONTEXT = 0x00010002;
+const INVALID_ENUM = 0x00010003;
+const INVALID_VALUE = 0x00010004;
+const OUT_OF_MEMORY = 0x00010005;
+const API_UNAVAILABLE = 0x00010006;
+const VERSION_UNAVAILABLE = 0x00010007;
+const PLATFORM_ERROR = 0x00010008;
+const FORMAT_UNAVAILABLE = 0x00010009;
+const NO_WINDOW_CONTEXT = 0x0001000A;
+const FOCUSED = 0x00020001;
+const ICONIFIED = 0x00020002;
+const RESIZABLE = 0x00020003;
+const VISIBLE = 0x00020004;
+const DECORATED = 0x00020005;
+const AUTO_ICONIFY = 0x00020006;
+const FLOATING = 0x00020007;
+const MAXIMIZED = 0x00020008;
+const CENTER_CURSOR = 0x00020009;
+const TRANSPARENT_FRAMEBUFFER = 0x0002000A;
+const HOVERED = 0x0002000B;
+const FOCUS_ON_SHOW = 0x0002000C;
+const RED_BITS = 0x00021001;
+const GREEN_BITS = 0x00021002;
+const BLUE_BITS = 0x00021003;
+const ALPHA_BITS = 0x00021004;
+const DEPTH_BITS = 0x00021005;
+const STENCIL_BITS = 0x00021006;
+const ACCUM_RED_BITS = 0x00021007;
+const ACCUM_GREEN_BITS = 0x00021008;
+const ACCUM_BLUE_BITS = 0x00021009;
+const ACCUM_ALPHA_BITS = 0x0002100A;
+const AUX_BUFFERS = 0x0002100B;
+const STEREO = 0x0002100C;
+const SAMPLES = 0x0002100D;
+const SRGB_CAPABLE = 0x0002100E;
+const REFRESH_RATE = 0x0002100F;
+const DOUBLEBUFFER = 0x00021010;
+const CLIENT_API = 0x00022001;
+const CONTEXT_VERSION_MAJOR = 0x00022002;
+const CONTEXT_VERSION_MINOR = 0x00022003;
+const CONTEXT_REVISION = 0x00022004;
+const CONTEXT_ROBUSTNESS = 0x00022005;
+const OPENGL_FORWARD_COMPAT = 0x00022006;
+const OPENGL_DEBUG_CONTEXT = 0x00022007;
+const OPENGL_PROFILE = 0x00022008;
+const CONTEXT_RELEASE_BEHAVIOR = 0x00022009;
+const CONTEXT_NO_ERROR = 0x0002200A;
+const CONTEXT_CREATION_API = 0x0002200B;
+const SCALE_TO_MONITOR = 0x0002200C;
+const COCOA_RETINA_FRAMEBUFFER = 0x00023001;
+const COCOA_FRAME_NAME = 0x00023002;
+const COCOA_GRAPHICS_SWITCHING = 0x00023003;
+const X11_CLASS_NAME = 0x00024001;
+const X11_INSTANCE_NAME = 0x00024002;
+const NO_API = 0;
+const OPENGL_API = 0x00030001;
+const OPENGL_ES_API = 0x00030002;
+const NO_ROBUSTNESS = 0;
+const NO_RESET_NOTIFICATION = 0x00031001;
+const LOSE_CONTEXT_ON_RESET = 0x00031002;
+const OPENGL_ANY_PROFILE = 0;
+const OPENGL_CORE_PROFILE = 0x00032001;
+const OPENGL_COMPAT_PROFILE = 0x00032002;
+const CURSOR = 0x00033001;
+const STICKY_KEYS = 0x00033002;
+const STICKY_MOUSE_BUTTONS = 0x00033003;
+const LOCK_KEY_MODS = 0x00033004;
+const RAW_MOUSE_MOTION = 0x00033005;
+const CURSOR_NORMAL = 0x00034001;
+const CURSOR_HIDDEN = 0x00034002;
+const CURSOR_DISABLED = 0x00034003;
+const ANY_RELEASE_BEHAVIOR = 0;
+const RELEASE_BEHAVIOR_FLUSH = 0x00035001;
+const RELEASE_BEHAVIOR_NONE = 0x00035002;
+const NATIVE_CONTEXT_API = 0x00036001;
+const EGL_CONTEXT_API = 0x00036002;
+const OSMESA_CONTEXT_API = 0x00036003;
+const WAYLAND_PREFER_LIBDECOR = 0x00038001;
+const WAYLAND_DISABLE_LIBDECOR = 0x00038002;
+const ARROW_CURSOR = 0x00036001;
+const IBEAM_CURSOR = 0x00036002;
+const CROSSHAIR_CURSOR = 0x00036003;
+const HAND_CURSOR = 0x00036004;
+const HRESIZE_CURSOR = 0x00036005;
+const VRESIZE_CURSOR = 0x00036006;
+const CONNECTED = 0x00040001;
+const DISCONNECTED = 0x00040002;
+const JOYSTICK_HAT_BUTTONS = 0x00050001;
+const COCOA_CHDIR_RESOURCES = 0x00051001;
+const COCOA_MENUBAR = 0x00051002;
+const WAYLAND_LIBDECOR = 0x00053001;
+const DONT_CARE = -1;
+
+alias GLFWglproc = fn void();
+
+alias GLFWvkproc = fn void();
+
+alias GLFWmonitor = void;
+
+alias GLFWwindow = void;
+
+alias GLFWcursor = void;
+
+alias GLFWerrorfun = fn void(
+  CInt error_code, 
+  CChar* description);
+
+alias GLFWwindowposfun = fn void(
+  GLFWwindow* window, 
+  CInt xpos, 
+  CInt ypos);
+
+alias GLFWwindowsizefun = fn void(
+  GLFWwindow* window, 
+  CInt width, 
+  CInt height);
+
+alias GLFWwindowclosefun = fn void(
+  GLFWwindow* window);
+
+alias GLFWwindowrefreshfun = fn void(
+  GLFWwindow* window);
+
+alias GLFWwindowfocusfun = fn void(
+  GLFWwindow* window, 
+  CInt focused);
+
+alias GLFWwindowiconifyfun = fn void(
+  GLFWwindow* window, 
+  CInt iconified);
+
+alias GLFWwindowmaximizefun = fn void(
+  GLFWwindow* window, 
+  CInt maximized);
+
+alias GLFWframebuffersizefun = fn void(
+  GLFWwindow* window, 
+  CInt width, 
+  CInt height);
+
+alias GLFWwindowcontentscalefun = fn void(
+  GLFWwindow* window, 
+  float xscale, 
+  float yscale);
+
+alias GLFWmousebuttonfun = fn void(
+  GLFWwindow* window, 
+  CInt button, 
+  CInt action, 
+  CInt mods);
+
+alias GLFWcursorposfun = fn void(
+  GLFWwindow* window, 
+  double xpos, 
+  double ypos);
+
+alias GLFWcursorenterfun = fn void(
+  GLFWwindow* window, 
+  CInt entered);
+
+alias GLFWscrollfun = fn void(
+  GLFWwindow* window, 
+  double xoffset, 
+  double yoffset);
+
+alias GLFWkeyfun = fn void(
+  GLFWwindow* window, 
+  CInt key, 
+  CInt scancode, 
+  CInt action, 
+  CInt mods);
+
+alias GLFWcharfun = fn void(
+  GLFWwindow* window, 
+  CUInt codepoint);
+
+alias GLFWcharmodsfun = fn void(
+  GLFWwindow* window, 
+  CUInt codepoint, 
+  CInt mods);
+
+alias GLFWdropfun = fn void(
+  GLFWwindow* window, 
+  CInt path_count, 
+  CChar* paths);
+
+alias GLFWmonitorfun = fn void(
+  GLFWmonitor* monitor, 
+  CInt event);
+
+alias GLFWjoystickfun = fn void(
+  CInt jid, 
+  CInt event);
+
+struct GLFWvidmode {
+  CInt width;
+  CInt height;
+  CInt red_bits;
+  CInt green_bits;
+  CInt blue_bits;
+  CInt refresh_rate;
+}
+
+struct GLFWgammaramp {
+  CUShort* red;
+  CUShort* green;
+  CUShort* blue;
+  CUInt size;
+}
+
+struct GLFWimage {
+  CInt width;
+  CInt height;
+  char* pixels;
+}
+
+struct GLFWgamepadstate {
+  char[15] buttons;
+  float[6] axes;
+}
+
+fn CInt init()
+@extern("glfwInit");
+
+fn void terminate()
+@extern("glfwTerminate");
+
+fn void initHint(
+  CInt hint, 
+  CInt value)
+@extern("glfwInitHint");
+
+fn void getVersion(
+  CInt* major, 
+  CInt* minor, 
+  CInt* rev)
+@extern("glfwGetVersion");
+
+fn CChar* getVersionString()
+@extern("glfwGetVersionString");
+
+fn CInt getError(
+  CChar** description)
+@extern("glfwGetError");
+
+fn GLFWerrorfun setErrorCallback(
+  GLFWerrorfun callback)
+@extern("glfwSetErrorCallback");
+
+fn GLFWmonitor** getMonitors(
+  CInt* count)
+@extern("glfwGetMonitors");
+
+fn GLFWmonitor* getPrimaryMonitor()
+@extern("glfwGetPrimaryMonitor");
+
+fn void getMonitorPos(
+  GLFWmonitor* monitor, 
+  CInt* xpos, 
+  CInt* ypos)
+@extern("glfwGetMonitorPos");
+
+fn void getMonitorWorkarea(
+  GLFWmonitor* monitor, 
+  CInt* xpos, 
+  CInt* ypos, 
+  CInt* width, 
+  CInt* height)
+@extern("glfwGetMonitorWorkarea");
+
+fn void getMonitorPhysicalSize(
+  GLFWmonitor* monitor, 
+  CInt* width_mm, 
+  CInt* height_mm)
+@extern("glfwGetMonitorPhysicalSize");
+
+fn void getMonitorContentScale(
+  GLFWmonitor* monitor, 
+  float* xscale, 
+  float* yscale)
+@extern("glfwGetMonitorContentScale");
+
+fn CChar* getMonitorName(
+  GLFWmonitor* monitor)
+@extern("glfwGetMonitorName");
+
+fn void setMonitorUserPointer(
+  GLFWmonitor* monitor, 
+  void* pointer)
+@extern("glfwSetMonitorUserPointer");
+
+fn void* getMonitorUserPointer(
+  GLFWmonitor* monitor)
+@extern("glfwGetMonitorUserPointer");
+
+fn GLFWmonitorfun setMonitorCallback(
+  GLFWmonitorfun callback)
+@extern("glfwSetMonitorCallback");
+
+fn GLFWvidmode* getVideoModes(
+  GLFWmonitor* monitor, 
+  CInt* count)
+@extern("glfwGetVideoModes");
+
+fn GLFWvidmode* getVideoMode(
+  GLFWmonitor* monitor)
+@extern("glfwGetVideoMode");
+
+fn void setGamma(
+  GLFWmonitor* monitor, 
+  float gamma)
+@extern("glfwSetGamma");
+
+fn GLFWgammaramp* getGammaRamp(
+  GLFWmonitor* monitor)
+@extern("glfwGetGammaRamp");
+
+fn void setGammaRamp(
+  GLFWmonitor* monitor, 
+  GLFWgammaramp* ramp)
+@extern("glfwSetGammaRamp");
+
+fn void defaultWindowHints()
+@extern("glfwDefaultWindowHints");
+
+fn void windowHint(
+  CInt hint, 
+  CInt value)
+@extern("glfwWindowHint");
+
+fn void windowHintString(
+  CInt hint, 
+  CChar* value)
+@extern("glfwWindowHintString");
+
+fn GLFWwindow* createWindow(
+  CInt width, 
+  CInt height, 
+  CChar* title, 
+  GLFWmonitor* monitor, 
+  GLFWwindow* share)
+@extern("glfwCreateWindow");
+
+fn void destroyWindow(
+  GLFWwindow* window)
+@extern("glfwDestroyWindow");
+
+fn CInt windowShouldClose(
+  GLFWwindow* window)
+@extern("glfwWindowShouldClose");
+
+fn void setWindowShouldClose(
+  GLFWwindow* window, 
+  CInt value)
+@extern("glfwSetWindowShouldClose");
+
+fn void setWindowTitle(
+  GLFWwindow* window, 
+  CChar* title)
+@extern("glfwSetWindowTitle");
+
+fn void setWindowIcon(
+  GLFWwindow* window, 
+  CInt count, 
+  GLFWimage* images)
+@extern("glfwSetWindowIcon");
+
+fn void getWindowPos(
+  GLFWwindow* window, 
+  CInt* xpos, 
+  CInt* ypos)
+@extern("glfwGetWindowPos");
+
+fn void setWindowPos(
+  GLFWwindow* window, 
+  CInt xpos, 
+  CInt ypos)
+@extern("glfwSetWindowPos");
+
+fn void getWindowSize(
+  GLFWwindow* window, 
+  CInt* width, 
+  CInt* height)
+@extern("glfwGetWindowSize");
+
+fn void setWindowSizeLimits(
+  GLFWwindow* window, 
+  CInt minwidth, 
+  CInt minheight, 
+  CInt maxwidth, 
+  CInt maxheight)
+@extern("glfwSetWindowSizeLimits");
+
+fn void setWindowAspectRatio(
+  GLFWwindow* window, 
+  CInt numer, 
+  CInt denom)
+@extern("glfwSetWindowAspectRatio");
+
+fn void setWindowSize(
+  GLFWwindow* window, 
+  CInt width, 
+  CInt height)
+@extern("glfwSetWindowSize");
+
+fn void getFramebufferSize(
+  GLFWwindow* window, 
+  CInt* width, 
+  CInt* height)
+@extern("glfwGetFramebufferSize");
+
+fn void getWindowFrameSize(
+  GLFWwindow* window, 
+  CInt* left, 
+  CInt* top, 
+  CInt* right, 
+  CInt* bottom)
+@extern("glfwGetWindowFrameSize");
+
+fn void getWindowContentScale(
+  GLFWwindow* window, 
+  float* xscale, 
+  float* yscale)
+@extern("glfwGetWindowContentScale");
+
+fn float getWindowOpacity(
+  GLFWwindow* window)
+@extern("glfwGetWindowOpacity");
+
+fn void setWindowOpacity(
+  GLFWwindow* window, 
+  float opacity)
+@extern("glfwSetWindowOpacity");
+
+fn void iconifyWindow(
+  GLFWwindow* window)
+@extern("glfwIconifyWindow");
+
+fn void restoreWindow(
+  GLFWwindow* window)
+@extern("glfwRestoreWindow");
+
+fn void maximizeWindow(
+  GLFWwindow* window)
+@extern("glfwMaximizeWindow");
+
+fn void showWindow(
+  GLFWwindow* window)
+@extern("glfwShowWindow");
+
+fn void hideWindow(
+  GLFWwindow* window)
+@extern("glfwHideWindow");
+
+fn void focusWindow(
+  GLFWwindow* window)
+@extern("glfwFocusWindow");
+
+fn void requestWindowAttention(
+  GLFWwindow* window)
+@extern("glfwRequestWindowAttention");
+
+fn GLFWmonitor* getWindowMonitor(
+  GLFWwindow* window)
+@extern("glfwGetWindowMonitor");
+
+fn void setWindowMonitor(
+  GLFWwindow* window, 
+  GLFWmonitor* monitor, 
+  CInt xpos, 
+  CInt ypos, 
+  CInt width, 
+  CInt height, 
+  CInt refresh_rate)
+@extern("glfwSetWindowMonitor");
+
+fn CInt getWindowAttrib(
+  GLFWwindow* window, 
+  CInt attrib)
+@extern("glfwGetWindowAttrib");
+
+fn void setWindowAttrib(
+  GLFWwindow* window, 
+  CInt attrib, 
+  CInt value)
+@extern("glfwSetWindowAttrib");
+
+fn void setWindowUserPointer(
+  GLFWwindow* window, 
+  void* pointer)
+@extern("glfwSetWindowUserPointer");
+
+fn void* getWindowUserPointer(
+  GLFWwindow* window)
+@extern("glfwGetWindowUserPointer");
+
+fn GLFWwindowposfun setWindowPosCallback(
+  GLFWwindow* window, 
+  GLFWwindowposfun callback)
+@extern("glfwSetWindowPosCallback");
+
+fn GLFWwindowsizefun setWindowSizeCallback(
+  GLFWwindow* window, 
+  GLFWwindowsizefun callback)
+@extern("glfwSetWindowSizeCallback");
+
+fn GLFWwindowclosefun setWindowCloseCallback(
+  GLFWwindow* window, 
+  GLFWwindowclosefun callback)
+@extern("glfwSetWindowCloseCallback");
+
+fn GLFWwindowrefreshfun setWindowRefreshCallback(
+  GLFWwindow* window, 
+  GLFWwindowrefreshfun callback)
+@extern("glfwSetWindowRefreshCallback");
+
+fn GLFWwindowfocusfun setWindowFocusCallback(
+  GLFWwindow* window, 
+  GLFWwindowfocusfun callback)
+@extern("glfwSetWindowFocusCallback");
+
+fn GLFWwindowiconifyfun setWindowIconifyCallback(
+  GLFWwindow* window, 
+  GLFWwindowiconifyfun callback)
+@extern("glfwSetWindowIconifyCallback");
+
+fn GLFWwindowmaximizefun setWindowMaximizeCallback(
+  GLFWwindow* window, 
+  GLFWwindowmaximizefun callback)
+@extern("glfwSetWindowMaximizeCallback");
+
+fn GLFWframebuffersizefun setFramebufferSizeCallback(
+  GLFWwindow* window, 
+  GLFWframebuffersizefun callback)
+@extern("glfwSetFramebufferSizeCallback");
+
+fn GLFWwindowcontentscalefun setWindowContentScaleCallback(
+  GLFWwindow* window, 
+  GLFWwindowcontentscalefun callback)
+@extern("glfwSetWindowContentScaleCallback");
+
+fn void pollEvents()
+@extern("glfwPollEvents");
+
+fn void waitEvents()
+@extern("glfwWaitEvents");
+
+fn void waitEventsTimeout(
+  double timeout)
+@extern("glfwWaitEventsTimeout");
+
+fn void postEmptyEvent()
+@extern("glfwPostEmptyEvent");
+
+fn CInt getInputMode(
+  GLFWwindow* window, 
+  CInt mode)
+@extern("glfwGetInputMode");
+
+fn void setInputMode(
+  GLFWwindow* window, 
+  CInt mode, 
+  CInt value)
+@extern("glfwSetInputMode");
+
+fn CInt rawMouseMotionSupported()
+@extern("glfwRawMouseMotionSupported");
+
+fn CChar* getKeyName(
+  CInt key, 
+  CInt scancode)
+@extern("glfwGetKeyName");
+
+fn CInt getKeyScancode(
+  CInt key)
+@extern("glfwGetKeyScancode");
+
+fn CInt getKey(
+  GLFWwindow* window, 
+  CInt key)
+@extern("glfwGetKey");
+
+fn CInt getMouseButton(
+  GLFWwindow* window, 
+  CInt button)
+@extern("glfwGetMouseButton");
+
+fn void getCursorPos(
+  GLFWwindow* window, 
+  double* xpos, 
+  double* ypos)
+@extern("glfwGetCursorPos");
+
+fn void setCursorPos(
+  GLFWwindow* window, 
+  double xpos, 
+  double ypos)
+@extern("glfwSetCursorPos");
+
+fn GLFWcursor* createCursor(
+  GLFWimage* image, 
+  CInt xhot, 
+  CInt yhot)
+@extern("glfwCreateCursor");
+
+fn GLFWcursor* createStandardCursor(
+  CInt shape)
+@extern("glfwCreateStandardCursor");
+
+fn void destroyCursor(
+  GLFWcursor* cursor)
+@extern("glfwDestroyCursor");
+
+fn void setCursor(
+  GLFWwindow* window, 
+  GLFWcursor* cursor)
+@extern("glfwSetCursor");
+
+fn GLFWkeyfun setKeyCallback(
+  GLFWwindow* window, 
+  GLFWkeyfun callback)
+@extern("glfwSetKeyCallback");
+
+fn GLFWcharfun setCharCallback(
+  GLFWwindow* window, 
+  GLFWcharfun callback)
+@extern("glfwSetCharCallback");
+
+fn GLFWcharmodsfun setCharModsCallback(
+  GLFWwindow* window, 
+  GLFWcharmodsfun callback)
+@extern("glfwSetCharModsCallback");
+
+fn GLFWmousebuttonfun setMouseButtonCallback(
+  GLFWwindow* window, 
+  GLFWmousebuttonfun callback)
+@extern("glfwSetMouseButtonCallback");
+
+fn GLFWcursorposfun setCursorPosCallback(
+  GLFWwindow* window, 
+  GLFWcursorposfun callback)
+@extern("glfwSetCursorPosCallback");
+
+fn GLFWcursorenterfun setCursorEnterCallback(
+  GLFWwindow* window, 
+  GLFWcursorenterfun callback)
+@extern("glfwSetCursorEnterCallback");
+
+fn GLFWscrollfun setScrollCallback(
+  GLFWwindow* window, 
+  GLFWscrollfun callback)
+@extern("glfwSetScrollCallback");
+
+fn GLFWdropfun setDropCallback(
+  GLFWwindow* window, 
+  GLFWdropfun callback)
+@extern("glfwSetDropCallback");
+
+fn CInt joystickPresent(
+  CInt jid)
+@extern("glfwJoystickPresent");
+
+fn float* getJoystickAxes(
+  CInt jid, 
+  CInt* count)
+@extern("glfwGetJoystickAxes");
+
+fn char* getJoystickButtons(
+  CInt jid, 
+  CInt* count)
+@extern("glfwGetJoystickButtons");
+
+fn char* getJoystickHats(
+  CInt jid, 
+  CInt* count)
+@extern("glfwGetJoystickHats");
+
+fn CChar* getJoystickName(
+  CInt jid)
+@extern("glfwGetJoystickName");
+
+fn CChar* getJoystickGUID(
+  CInt jid)
+@extern("glfwGetJoystickGUID");
+
+fn void setJoystickUserPointer(
+  CInt jid, 
+  void* pointer)
+@extern("glfwSetJoystickUserPointer");
+
+fn void* getJoystickUserPointer(
+  CInt jid)
+@extern("glfwGetJoystickUserPointer");
+
+fn CInt joystickIsGamepad(
+  CInt jid)
+@extern("glfwJoystickIsGamepad");
+
+fn GLFWjoystickfun setJoystickCallback(
+  GLFWjoystickfun callback)
+@extern("glfwSetJoystickCallback");
+
+fn CInt updateGamepadMappings(
+  CChar* string)
+@extern("glfwUpdateGamepadMappings");
+
+fn CChar* getGamepadName(
+  CInt jid)
+@extern("glfwGetGamepadName");
+
+fn CInt getGamepadState(
+  CInt jid, 
+  GLFWgamepadstate* state)
+@extern("glfwGetGamepadState");
+
+fn void setClipboardString(
+  GLFWwindow* window, 
+  CChar* string)
+@extern("glfwSetClipboardString");
+
+fn CChar* getClipboardString(
+  GLFWwindow* window)
+@extern("glfwGetClipboardString");
+
+fn double getTime()
+@extern("glfwGetTime");
+
+fn void setTime(
+  double time)
+@extern("glfwSetTime");
+
+fn ulong getTimerValue()
+@extern("glfwGetTimerValue");
+
+fn ulong getTimerFrequency()
+@extern("glfwGetTimerFrequency");
+
+fn void makeContextCurrent(
+  GLFWwindow* window)
+@extern("glfwMakeContextCurrent");
+
+fn GLFWwindow* getCurrentContext()
+@extern("glfwGetCurrentContext");
+
+fn void swapBuffers(
+  GLFWwindow* window)
+@extern("glfwSwapBuffers");
+
+fn void swapInterval(
+  CInt interval)
+@extern("glfwSwapInterval");
+
+fn CInt extensionSupported(
+  CChar* extension)
+@extern("glfwExtensionSupported");
+
+fn GLFWglproc getProcAddress(
+  CChar* procname)
+@extern("glfwGetProcAddress");
+
+fn CInt vulkanSupported()
+@extern("glfwVulkanSupported");
+
+fn CChar** getRequiredInstanceExtensions(
+  uint* count)
+@extern("glfwGetRequiredInstanceExtensions");
+
+module glfw @if($defined(env::GLFW_INCLUDE_VULKAN) &&& env::GLFW_INCLUDE_VULKAN);
+import vk;
+
+fn GLFWvkproc getInstanceProcAddress(
+  VkInstance instance, 
+  CChar* procname)
+@extern("glfwGetInstanceProcAddress");
+
+fn CInt getPhysicalDevicePresentationSupport(
+  VkInstance instance, 
+  VkPhysicalDevice device, 
+  uint queuefamily)
+@extern("glfwGetPhysicalDevicePresentationSupport");
+
+fn VkResult createWindowSurface(
+  VkInstance instance, 
+  GLFWwindow* window, 
+  VkAllocationCallbacks* allocator, 
+  VkSurfaceKHR* surface)
+@extern("glfwCreateWindowSurface");
