@@ -58,19 +58,20 @@ fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* context, Maybe{V
         create_image_count = supp_info.capabilities.max_image_count;
     }
 
-	VkSwapchainCreateInfoKHR swapchain_ci;
-	swapchain_ci.s_type = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchain_ci.surface = context.surface;
-	swapchain_ci.min_image_count = create_image_count;
-    swapchain_ci.image_format = swapchain.surface_fmt.format;
-    swapchain_ci.image_color_space = swapchain.surface_fmt.color_space;
-    swapchain_ci.image_extent = extent;
-    swapchain_ci.image_array_layers = 1;
-    swapchain_ci.image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    swapchain_ci.pre_transform = supp_info.capabilities.current_transform;
-    swapchain_ci.composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchain_ci.present_mode = swapchain.present_mode;
-    swapchain_ci.old_swapchain = null;
+	VkSwapchainCreateInfoKHR swapchain_ci = {
+		.s_type = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = context.surface,
+		.min_image_count = create_image_count,
+	    .image_format = swapchain.surface_fmt.format,
+	    .image_color_space = swapchain.surface_fmt.color_space,
+	    .image_extent = extent,
+	    .image_array_layers = 1,
+	    .image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+	    .pre_transform = supp_info.capabilities.current_transform,
+	    .composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+	    .present_mode = swapchain.present_mode,
+	    .old_swapchain = null,
+	};
 
     if (dev.queue_indices.graphics.fam != dev.queue_indices.present.fam) {
         uint[2] queue_indices = { dev.queue_indices.graphics.fam, dev.queue_indices.present.fam };

@@ -8,7 +8,7 @@ struct AxisAngle {
 	float angle;
 }
 
-module n_math {LEN};
+module n_math <LEN>;
 alias Vec = float[<LEN>];
 
 const Vec3 V3_RIGHT = { 1, 0, 0 };

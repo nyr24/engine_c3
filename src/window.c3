@@ -13,18 +13,18 @@ faultdef WINDOW_CREATION_FAILED, VULKAN_NOT_SUPPORTED;
 
 fn Window? create(CChar* name, uint width, uint height) {
 	if (!glfw::init()) {
-		return WINDOW_CREATION_FAILED?;
+		return WINDOW_CREATION_FAILED~;
 	}
 
     if (!glfw::vulkanSupported()) {
-		return VULKAN_NOT_SUPPORTED?;
+		return VULKAN_NOT_SUPPORTED~;
     }
 
     glfw::windowHint(glfw::CLIENT_API, glfw::NO_API);
 
     glfw::GLFWwindow* handle = glfw::createWindow((CInt)width, (CInt)height, name, null, null);
     if (!handle) {
-        return WINDOW_CREATION_FAILED?;
+        return WINDOW_CREATION_FAILED~;
     }
 
 	Window window = { .handle = handle, .width = width, .height = height };

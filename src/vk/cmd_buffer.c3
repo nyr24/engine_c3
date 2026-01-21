@@ -20,7 +20,7 @@ struct VulkanCmdBuffer
 	VulkanCmdBufferState state;
 }
 
-struct VulkanCmdBufferSOA @generic(CAP)
+struct VulkanCmdBufferSOA <CAP>
 {
 	ElasticArray{VkCommandBuffer, CAP}      handles;
 	ElasticArray{VulkanCmdBufferState, CAP} states;

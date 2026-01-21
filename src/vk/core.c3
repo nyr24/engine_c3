@@ -20,12 +20,12 @@ fn void? init_vk(VulkanContext* out_context, AppConfig* app_config, Window* wind
 	vk_check(vk::volk_initialize());
 
 	if (!init_instance(out_context, app_config)) {
-		return INSTANCE_INIT_FAILED?;
+		return INSTANCE_INIT_FAILED~;
 	}
 
 	window.create_vk_surface(out_context.instance, &out_context.surface);
 
 	if (!init_device(out_context)) {
-		return DEVICE_INIT_FAILED?;
+		return DEVICE_INIT_FAILED~;
 	}
 }
