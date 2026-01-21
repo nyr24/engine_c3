@@ -22,7 +22,7 @@ fn bool init()
 	}
 	defer window.destroy();
 
-	VkContext context @noinit;
+	VulkanContext context @noinit;
 	AppConfig config = {
 		.name = "hello",
 		.init_width = INIT_WND_WIDTH,

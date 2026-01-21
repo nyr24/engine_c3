@@ -3,18 +3,19 @@ module vk;
 import app;
 import window;
 
-struct VkContext {
-	Device device;
-	VkInstance instance;
-	VkSurfaceKHR surface;
-	VkDebugUtilsMessengerEXT debug_messenger;
+struct VulkanContext {
+	VulkanDevice            	dev;
+	VulkanSwapchain         	swapchain;
+	VkInstance              	instance;
+	VkSurfaceKHR            	surface;
+	VkDebugUtilsMessengerEXT	debug_messenger;
 }
 
 faultdef INSTANCE_INIT_FAILED,
 	DEVICE_INIT_FAILED,
 	LAYERS_INIT_FAILED;
 
-fn void? init_vk(VkContext* out_context, AppConfig* app_config, Window* window)
+fn void? init_vk(VulkanContext* out_context, AppConfig* app_config, Window* window)
 {
 	vk_check(vk::volk_initialize());
 

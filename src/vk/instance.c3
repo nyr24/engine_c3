@@ -13,14 +13,14 @@ const MAX_AVAIL_EXT_CNT = 100u;
 const MAX_REQ_LAYERS_CNT = 10u;
 const MAX_AVAIL_LAYERS_CNT = 30u;
 
-fn bool init_instance(VkContext* context, AppConfig* config) @private
+fn bool init_instance(VulkanContext* context, AppConfig* config) @private
 {
     VkApplicationInfo vk_app_info = {
         .s_type = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .api_version = VK_API_VERSION_1_4,
     };
 
-    VkInstanceCreateInfo create_info = {
+    VkInstanceCreateInfo instance_ci = {
         .s_type = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .p_application_info = &vk_app_info,
     };
@@ -47,10 +47,10 @@ $endif
 		return false;
 	}
 
-	create_info.enabled_extension_count = (uint)req_extensions.size;
-	create_info.pp_enabled_extension_names = req_extensions.data();
+	instance_ci.enabled_extension_count = (uint)req_extensions.size;
+	instance_ci.pp_enabled_extension_names = req_extensions.data();
 
-	vk_check(vkCreateInstance(&create_info, null, &context.instance));
+	vk_check(vkCreateInstance(&instance_ci, null, &context.instance));
 
 	volk_load_instance_only(context.instance);
 
@@ -117,7 +117,7 @@ fn bool check_req_extensions(ElasticArray{CChar*, MAX_REQ_EXT_CNT}* req_extensio
 	return true;
 }
 
-fn void create_debugger(VkContext* context) @if($feature(SF_DEBUG)) @private
+fn void create_debugger(VulkanContext* context) @if($feature(SF_DEBUG)) @private
 {
     uint log_severity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
