@@ -385,14 +385,6 @@ fn void VulkanDescriptorPool.allocate_sets(&pool, VulkanDevice* dev, VulkanDescr
     vk_check(vkAllocateDescriptorSets(dev.log_dev, &alloc_info, sets.ptr));
 }
 
-fn void VulkanDescriptorPool.destroy(&pool, VulkanContext* ctx)
-{
-    if (pool.handle) {
-        vkDestroyDescriptorPool(ctx.dev.log_dev, pool.handle, ctx.vk_alloc);
-        pool.handle = null;
-    }
-}
-
 // VulkanDescriptorSetLayout
 
 struct VulkanDescriptorSetLayout
@@ -426,10 +418,50 @@ fn void create_descriptor_bindings(VkShaderStageFlags stage_flags, VkDescriptorT
     }
 }
 
+// destructors
+
+fn void VulkanShader.destroy(&shader, VulkanContext* ctx)
+{
+	foreach (&layout : shader.descriptor_layouts) {
+	    layout.destroy(ctx);
+	}
+	foreach (&pipe : shader.pipelines) {
+		pipe.destroy(ctx);
+	}
+	foreach (&pool : shader.descriptor_pools) {
+	    pool.destroy(ctx);
+	}
+	shader.mod.destroy(ctx);
+}
+
+fn void VulkanPipeline.destroy(&pipe, VulkanContext* ctx)
+{
+	if (pipe.handle) {
+	    vkDestroyPipeline(ctx.dev.log_dev, pipe.handle, ctx.vk_alloc);
+		pipe.handle = null;
+	}
+}
+
+fn void VulkanShaderModule.destroy(&mod, VulkanContext* ctx)
+{
+	if (mod.handle) {
+	    vkDestroyShaderModule(ctx.dev.log_dev, mod.handle, ctx.vk_alloc);
+		mod.handle = null;
+	}
+}
+
 fn void VulkanDescriptorSetLayout.destroy(&layout, VulkanContext* ctx)
 {
     if (layout.handle) {
         vkDestroyDescriptorSetLayout(ctx.dev.log_dev, layout.handle, ctx.vk_alloc);
         layout.handle = null;
+    }
+}
+
+fn void VulkanDescriptorPool.destroy(&pool, VulkanContext* ctx)
+{
+    if (pool.handle) {
+        vkDestroyDescriptorPool(ctx.dev.log_dev, pool.handle, ctx.vk_alloc);
+        pool.handle = null;
     }
 }

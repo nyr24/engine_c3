@@ -235,6 +235,9 @@ fn void VulkanContext.destroy_frame_data(&ctx) @private
 
 fn void VulkanContext.destroy(&ctx)
 {
+	foreach (&shader : ctx.shaders) {
+		shader.destroy(ctx);
+	}
 	ctx.destroy_frame_data();
 	ctx.swapchain.destroy(ctx);
 	ctx.dev.destroy(ctx);
