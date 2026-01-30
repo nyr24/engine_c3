@@ -3,7 +3,7 @@ module logger;
 import std::io;
 import std::collections::elastic_array;
 
-enum LogLevel : uint
+enum LogLevel : inline uint
 {
 	INFO,
 	DEBUG,
@@ -18,7 +18,7 @@ enum LogLevel : uint
 const BUFF_LEN = 512;
 const MSG_BUFF_LEN = 480;
 
-String[(uint)LogLevel._COUNT] color_strings = {
+String[LogLevel._COUNT] color_strings = {
     "\x1b[1;32",
     "\x1b[1;34",
     "\x1b[1;28",
@@ -28,7 +28,7 @@ String[(uint)LogLevel._COUNT] color_strings = {
     "\x1b[0;41",
 };
 
-String[(uint)LogLevel._COUNT] log_level_as_str = {
+String[LogLevel._COUNT] log_level_as_str = {
     "[INFO]: ",
     "[DEBUG]: ",
     "[TRACE]: ",
@@ -38,46 +38,52 @@ String[(uint)LogLevel._COUNT] log_level_as_str = {
     "[FATAL]: ",
 };
 
-macro void log_inner(LogLevel level, bool $newline, String $fmt, args...) @private
+macro void log_inner(LogLevel $level, bool $newline, String $fmt, args...) @private
 {
 	char[BUFF_LEN] buff;
 	char[MSG_BUFF_LEN] msg_buff;
 	char[] msg_view = io::bprintf(msg_buff[..], $fmt, args)!!;
-	char[] log_view = io::bprintf(buff[..], "\x1b[%sm%s%s\x1b[0m", color_strings[(uint)level], log_level_as_str[(uint)level], (String)msg_view)!!;
+	char[] log_view = io::bprintf(
+		buff[..],
+		"\x1b[%sm%s%s\x1b[0m",
+		color_strings[$level],
+		log_level_as_str[$level],
+		(String)msg_view
+	)!!;
 
 	$if !$newline:
-		if (level < LogLevel.WARN) {
+		$if ($level < LogLevel.WARN):
 			io::printf("%s", (String)log_view);
-		} else {
+		$else
 			io::eprintf("%s", (String)log_view);
-		}
+		$endif
 	$else
-		if (level < LogLevel.WARN) {
+		$if ($level < LogLevel.WARN):
 			io::printfn("%s", (String)log_view);
-		} else {
+		$else
 			io::eprintfn("%s", (String)log_view);
-		}
-	$endif
-}
-
-macro @log(LogLevel #level, String $fmt, args...)
-{
-	$if ($feature(SF_DEBUG)):
-		log_inner(#level, false, $fmt, args);
-	$else
-		$if	(#level >= LogLevel.ERROR):
-			log_inner(#level, false, $fmt, args);
 		$endif
 	$endif
 }
 
-macro @logn(LogLevel #level, String $fmt, args...)
+macro @log(LogLevel $level, String $fmt, args...)
 {
 	$if ($feature(SF_DEBUG)):
-		log_inner(#level, true, $fmt, args);
+		log_inner($level, false, $fmt, args);
 	$else
-		$if	(#level >= LogLevel.ERROR):
-			log_inner(#level, true, $fmt, args);
+		$if	($level >= LogLevel.ERROR):
+			log_inner($level, false, $fmt, args);
+		$endif
+	$endif
+}
+
+macro @logn(LogLevel $level, String $fmt, args...)
+{
+	$if ($feature(SF_DEBUG)):
+		log_inner($level, true, $fmt, args);
+	$else
+		$if	($level >= LogLevel.ERROR):
+			log_inner($level, true, $fmt, args);
 		$endif
 	$endif
 }

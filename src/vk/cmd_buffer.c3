@@ -22,8 +22,8 @@ struct VulkanCmdBuffer
 
 struct VulkanCmdBufferSOA <CAP>
 {
-	ElasticArray{VkCommandBuffer, CAP}      handles;
-	ElasticArray{VulkanCmdBufferState, CAP} states;
+	ElasticArray{VkCommandBuffer, FRAMES_IN_FLIGHT}      handles;
+	ElasticArray{VulkanCmdBufferState, FRAMES_IN_FLIGHT} states;
 }
 
 struct VulkanCmdBufferSOAView
@@ -35,7 +35,8 @@ struct VulkanCmdBufferSOAView
 <*
 	@require cmd_buff.state == VulkanCmdBufferState.READY : "Should be in READY state"
 *>
-fn void VulkanCmdBuffer.begin_recording(&cmd_buff, VkCommandBufferUsageFlags flags) {
+fn void VulkanCmdBuffer.begin_recording(&cmd_buff, VkCommandBufferUsageFlags flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
+{
     VkCommandBufferBeginInfo begin_info = {
         .s_type = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = flags,
@@ -47,7 +48,8 @@ fn void VulkanCmdBuffer.begin_recording(&cmd_buff, VkCommandBufferUsageFlags fla
 <*
 	@require cmd_buff.state == VulkanCmdBufferState.RECORDING_BEGIN : "Should be in RECORDING_BEGIN state"
 *>
-fn void VulkanCmdBuffer.end_recording(&cmd_buff) {
+fn void VulkanCmdBuffer.end_recording(&cmd_buff)
+{
     vk_check(vkEndCommandBuffer(cmd_buff.handle));
     cmd_buff.state = VulkanCmdBufferState.RECORDING_END;
 }
@@ -55,7 +57,8 @@ fn void VulkanCmdBuffer.end_recording(&cmd_buff) {
 <*
 	@require cmd_buff.state == VulkanCmdBufferState.SUBMITTED : "Should be in SUBMITTED state"
 *>
-fn void VulkanCmdBuffer.reset(&cmd_buff, VkCommandBufferResetFlags flags) {
+fn void VulkanCmdBuffer.reset(&cmd_buff, VkCommandBufferResetFlags flags)
+{
     vk_check(vkResetCommandBuffer(cmd_buff.handle, flags));
     cmd_buff.state = VulkanCmdBufferState.READY;
 }
@@ -67,16 +70,14 @@ struct VulkanCmdPool
 	VkCommandPool handle;
 }
 
-fn VulkanCmdPool init(VulkanDevice* dev, char queue_fam_ind, VkAllocationCallbacks* vk_alloc = null)
+fn void VulkanCmdPool.init(&cmd_pool, VulkanContext* ctx, char queue_fam_ind)
 {
-    VulkanCmdPool pool @noinit;
     VkCommandPoolCreateInfo cmd_pool_ci = {
         .s_type = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queue_family_index = (uint)queue_fam_ind,
     };
-    vk_check(vkCreateCommandPool(dev.log_dev, &cmd_pool_ci, vk_alloc, &pool.handle));
-    return pool;
+    vk_check(vkCreateCommandPool(ctx.dev.log_dev, &cmd_pool_ci, ctx.vk_alloc, &cmd_pool.handle));
 }
 
 <*
@@ -91,7 +92,7 @@ fn void VulkanCmdPool.allocate_cmd_buffers(&cmd_pool, VulkanDevice* dev, VulkanC
         .command_buffer_count = (uint)soa::@len(out_cmd_buffs),
     };
 
-    vk_check(vkAllocateCommandBuffers(dev.log_dev, &alloc_info, out_cmd_buffs.handles));
+    vk_check(vkAllocateCommandBuffers(dev.log_dev, &alloc_info, out_cmd_buffs.handles.ptr));
 	foreach (&state : out_cmd_buffs.states) {
         *state = VulkanCmdBufferState.READY;
     }
@@ -108,9 +109,10 @@ fn void VulkanCmdPool.free_cmd_buffers(&cmd_pool, VulkanDevice* dev, VulkanCmdBu
     }
 }
 
-fn void VulkanCmdPool.destroy(&cmd_pool, VulkanDevice* dev, VkAllocationCallbacks* vk_alloc = null) {
+fn void VulkanCmdPool.destroy(&cmd_pool, VulkanContext* ctx)
+{
 	if (cmd_pool.handle) {
-	    vkDestroyCommandPool(dev.log_dev, cmd_pool.handle, vk_alloc);
+	    vkDestroyCommandPool(ctx.dev.log_dev, cmd_pool.handle, ctx.vk_alloc);
 		cmd_pool.handle = null;
 	}
 }

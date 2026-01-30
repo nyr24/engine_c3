@@ -1,9 +1,9 @@
 module util;
 
-macro void swap_ptrs(x, y) {
-	var temp = *x;
-	*x = *y;
-	*y = temp;
+macro void @swap_ptrs(#x, #y) {
+	var temp = *#x;
+	*#x = *#y;
+	*#y = temp;
 }
 
 macro @perf(String name = "Current Test"; @body) {

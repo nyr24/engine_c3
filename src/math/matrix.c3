@@ -1,12 +1,11 @@
-module n_math;
+module std::math;
 
-import std::math;
 import std::io;
 
-alias Mat4 = std::math::matrix::Matrix4x4{float};
-alias Mat3 = std::math::matrix::Matrix3x3{float};
-alias M4_IDENTITY = std::math::matrix::IDENTITY4{float};
-alias M3_IDENTITY = std::math::matrix::IDENTITY3{float};
+alias Mat4 = matrix::Matrix4x4{float};
+alias Mat3 = matrix::Matrix3x3{float};
+alias M4_IDENTITY = matrix::IDENTITY4{float};
+alias M3_IDENTITY = matrix::IDENTITY3{float};
 
 const M4_LEN = 16;
 const M4_ROWS = 4;

@@ -15,6 +15,8 @@ const MAX_AVAIL_LAYERS_CNT = 30u;
 
 fn bool init_instance(VulkanContext* context, AppConfig* config) @private
 {
+	context.vk_alloc = null;
+
     VkApplicationInfo vk_app_info = {
         .s_type = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .api_version = VK_API_VERSION_1_4,

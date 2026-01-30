@@ -15,6 +15,7 @@ const MAX_DEVICE_REQ_EXT = 10u;
 const MAX_DEVICE_AVAIL_EXT = 128u;
 const MAX_QUEUE_FAMILIES = 16u;
 const MAX_QUEUE_CNT = 4u;
+const INVALID_QUEUE_IND = 255u;
 
 struct VulkanDevice {
 	SwapchainSupportInfo				swapchain_supp_info;
@@ -52,11 +53,11 @@ struct SwapchainSupportInfo {
     VkSurfaceCapabilitiesKHR 							capabilities;
 }
 
-fn bool init_device(VulkanContext* context)
+fn bool init_device(VulkanContext* ctx)
 {
-	VulkanDevice* dev = &context.dev;
+	VulkanDevice* dev = &ctx.dev;
 	uint device_cnt @noinit;
-	vk_check(vkEnumeratePhysicalDevices(context.instance, &device_cnt, null));
+	vk_check(vkEnumeratePhysicalDevices(ctx.instance, &device_cnt, null));
 	if (!device_cnt) {
 		logger::@logn(LogLevel.FATAL, "Available devices were not found");
 	    return false;
@@ -65,17 +66,16 @@ fn bool init_device(VulkanContext* context)
 	ElasticArray{VkPhysicalDevice, MAX_PHYS_DEVS} phys_devs @noinit;
 	phys_devs.resize(math::min(MAX_PHYS_DEVS, device_cnt));
 
-	vk_check(vkEnumeratePhysicalDevices(context.instance, &device_cnt, phys_devs.data()));
+	vk_check(vkEnumeratePhysicalDevices(ctx.instance, &device_cnt, phys_devs.data()));
 
 	ElasticArray{CChar*, MAX_DEVICE_REQ_EXT} device_req_extensions;
 	device_req_extensions.push_all({ (CChar*)VK_KHR_SWAPCHAIN_EXTENSION_NAME, (CChar*)VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME, (CChar*)VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME });
 
 	VkPhysicalDevice selected_phys_dev = null;
-	SwapchainSupportInfo swapchain_supp_info;
 	CChar*[] req_ext_view = device_req_extensions.array_view();
 
 	foreach (phys_dev : phys_devs.array_view()) {
-		if (is_suitable(phys_dev, context.surface, req_ext_view, &swapchain_supp_info)) {
+		if (is_suitable(phys_dev, ctx.surface, req_ext_view, &ctx.dev.swapchain_supp_info)) {
 			selected_phys_dev = phys_dev;
 			break;
 		}
@@ -98,7 +98,7 @@ fn bool init_device(VulkanContext* context)
 	// Queue Selection
 	ElasticArray{char, MAX_QUEUE_FAMILIES} selected_fam_queue_cnts;
 	
-	if (!find_queue_families(selected_phys_dev, context.surface, &selected_fam_queue_cnts, &dev.queue_indices)) {
+	if (!find_queue_families(selected_phys_dev, ctx.surface, &selected_fam_queue_cnts, &dev.queue_indices)) {
 		logger::@logn(LogLevel.FATAL, "Failed to find required queue families on the device");
 		return false;
 	}
@@ -154,10 +154,10 @@ fn bool init_device(VulkanContext* context)
         .p_enabled_features = &device_features,
     };
 
-    vk_check(vkCreateDevice(dev.phys_dev, &device_ci, null, &dev.log_dev));
+    vk_check(vkCreateDevice(dev.phys_dev, &device_ci, ctx.vk_alloc, &dev.log_dev));
     volk_load_device(dev.log_dev);
 
-    vkGetDeviceQueue(dev.log_dev, dev.queue_indices.graphics.fam, dev.queue_indices.graphics.queue, &dev.transfer_queue);
+    vkGetDeviceQueue(dev.log_dev, dev.queue_indices.graphics.fam, dev.queue_indices.graphics.queue, &dev.graphics_queue);
     vkGetDeviceQueue(dev.log_dev, dev.queue_indices.present.fam, dev.queue_indices.present.queue, &dev.present_queue);
     vkGetDeviceQueue(dev.log_dev, dev.queue_indices.transfer.fam, dev.queue_indices.transfer.queue, &dev.transfer_queue);
     vkGetDeviceQueue(dev.log_dev, dev.queue_indices.compute.fam, dev.queue_indices.compute.queue, &dev.compute_queue);
@@ -246,9 +246,10 @@ fn void query_swapchain_support(VkPhysicalDevice dev, VkSurfaceKHR surface, Swap
     }
 }
 
-fn bool VulkanDevice.detect_depth_format(&self) {
-	assert(self.phys_dev, "Should not be null");
-
+<*
+	@require dev.phys_dev != null : "Should not be null"
+*>
+fn bool VulkanDevice.detect_depth_format(&dev) {
     ElasticArray{VkFormat, 3} candidates;
 	candidates.push_all(
 		{
@@ -262,9 +263,9 @@ fn bool VulkanDevice.detect_depth_format(&self) {
 
 	foreach (cand : candidates.array_view()) {
         VkFormatProperties properties @noinit;
-        vkGetPhysicalDeviceFormatProperties(self.phys_dev, cand, &properties);
+        vkGetPhysicalDeviceFormatProperties(dev.phys_dev, cand, &properties);
         if (((properties.linear_tiling_features & flags) == flags) || ((properties.optimal_tiling_features & flags) == flags)) {
-            self.depth_fmt = cand;
+            dev.depth_fmt = cand;
             return true;
         }
     }
@@ -473,3 +474,27 @@ fn void calc_required_queue_counts(char[] selected_queue_cnts, ElasticArray{Queu
 		});
 	}
 }
+
+fn void VulkanDevice.destroy(&dev, VulkanContext* ctx)
+{
+    dev.graphics_queue = null;
+    dev.present_queue = null;
+    dev.transfer_queue = null;
+
+    if (dev.log_dev) {
+        vkDestroyDevice(dev.log_dev, ctx.vk_alloc);
+        dev.log_dev = null;
+    }
+
+    dev.phys_dev = null;
+
+    dev.queue_indices.graphics.fam = INVALID_QUEUE_IND;
+    dev.queue_indices.graphics.queue = INVALID_QUEUE_IND;
+    dev.queue_indices.present.fam = INVALID_QUEUE_IND;
+    dev.queue_indices.present.queue = INVALID_QUEUE_IND;
+    dev.queue_indices.transfer.fam = INVALID_QUEUE_IND;
+    dev.queue_indices.transfer.queue = INVALID_QUEUE_IND;
+    dev.queue_indices.compute.fam = INVALID_QUEUE_IND;
+    dev.queue_indices.compute.queue = INVALID_QUEUE_IND;
+}
+

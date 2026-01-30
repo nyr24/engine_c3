@@ -3,37 +3,52 @@ module app;
 import window;
 import vk;
 import logger;
+import event;
+import arena;
 
-struct AppConfig {
+const ARENA_MIN_REGION_SIZE = 4096u;
+const TEMP_ALLOCATOR_CAPACITY = 4096u * 16u;
+
+struct AppConfig
+{
 	String name;
-	uint init_width;
-	uint init_height;
+	uint   init_width;
+	uint   init_height;
 }
 
-const INIT_WND_WIDTH = 800u;
-const INIT_WND_HEIGHT = 600u;
-
-fn bool init()
+struct App
 {
+	EventSystem 	event_sys;
+	VulkanContext 	vk_ctx;
+	ArenaAlloc		main_alloc;
+	Allocator		temp_alloc;
+	Window			window;
+}
+
+fn bool App.init(&app, AppConfig config)
+{
+	app.main_alloc.init(mem, 10, ARENA_MIN_REGION_SIZE, ARENA_MIN_REGION_SIZE);
+	app.temp_alloc = allocator::new_temp_allocator(mem, TEMP_ALLOCATOR_CAPACITY)!!;
+
 	Window? window = window::create("hello", 800, 600);
 	if (catch window) {
 		logger::@logn(LogLevel.FATAL, "Failed failed to initialize a window");
 		return false;
 	}
-	defer window.destroy();
+	app.window = window;
 
-	VulkanContext context @noinit;
-	AppConfig config = {
-		.name = "hello",
-		.init_width = INIT_WND_WIDTH,
-		.init_height = INIT_WND_HEIGHT,
-	};
-
-	if (catch err = vk::init_vk(&context, &config, &window)) {
-		// TODO: switch (err)
-		logger::@logn(LogLevel.FATAL, "Failed to initialize vulkan");
+	if (catch err = vk::init_vk(app, &config, &app.window)) {
+		logger::@logn(LogLevel.FATAL, "Failed to initialize vulkan, reason: %s", err);
 		return false;
 	}
 
 	return true;
+}
+
+fn void App.shutdown(&app)
+{
+	app.main_alloc.destroy();
+	((TempAllocator*)app.temp_alloc).free();
+	app.vk_ctx.destroy();
+	app.window.destroy();
 }
