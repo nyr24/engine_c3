@@ -38,8 +38,8 @@ struct FrameDataSOA
 struct FrameDataSOAView
 {
 	VulkanCmdPool[]   		cmd_pools;
-	VkCommandBuffer 		cmd_buffers;
-	VulkanCmdBufferState 	cmd_buffer_states;
+	VkCommandBuffer[] 		cmd_buffers;
+	VulkanCmdBufferState[] 	cmd_buffer_states;
 	VkSemaphore[]     		image_avail_semaphores;
 	VkSemaphore[]     		resource_transfer_end_semaphores;
 	VkSemaphore[]     		render_end_semaphores;

@@ -110,13 +110,13 @@ fn VulkanShader create_shader(VulkanContext* ctx, String file_name, VulkanShader
 		pipe.layout = pipeline_layout;
 	}
 
-	foreach (uint ii, &pipe_conf : config.pipeline_configs) {
+	foreach (uint i, &pipe_conf : config.pipeline_configs) {
 		shader.create_pipeline(
 			ctx,
 			pipe_conf,
 			config.attrib_descriptions,
 			config.vertex_binding_index,
-			&shader.pipelines[ii]
+			&shader.pipelines[i]
 		);
 	}
 	

@@ -1,0 +1,12 @@
+[submodule "src/dependencies/utils"]
+	path = src/dependencies/utils
+	url = git@github.com:nyr24/c3_utils.git
+	branch = main
+[submodule "src/dependencies/soa"]
+	path = src/dependencies/soa
+	url = git@github.com:nyr24/c3_soa_lib.git
+	branch = main
+[submodule "src/dependencies/arena_alloc"]
+	path = src/dependencies/arena_alloc
+	url = git@github.com:nyr24/arena_alloc_c3.git
+	branch = main
