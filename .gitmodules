@@ -10,3 +10,7 @@
 	path = src/dependencies/arena_alloc
 	url = git@github.com:nyr24/arena_alloc_c3.git
 	branch = main
+[submodule "src/dependencies/serializer"]
+	path = src/dependencies/serializer
+	url = git@github.com:nyr24/serializer_c3.git
+	branch = main
