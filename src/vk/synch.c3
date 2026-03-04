@@ -65,7 +65,7 @@ fn bool VulkanFence.wait(&fence, VulkanContext* ctx)
         fence.is_signaled = true;
         return true;
     } else {
-        logger::@logn(LogLevel.FATAL, "Fence wait error occurred");
+        logger::logn(ERROR, "Fence wait error occurred");
         return false;
     }
 }

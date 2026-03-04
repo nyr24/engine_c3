@@ -1,12 +1,12 @@
 module vk;
 
-import std;
-import std::collections::elastic_array;
+import engine;
 import platform;
 import logger;
 import util;
+import std::collections::elastic_array;
 import std::core::builtin;
-import app;
+import std::math;
 
 const MAX_REQ_EXT_CNT = 10u;
 const MAX_AVAIL_EXT_CNT = 100u;
@@ -28,7 +28,7 @@ fn bool init_instance(VulkanContext* context, AppConfig* config) @private
     };
 
 $if ($feature(SF_DEBUG)):
-    ElasticArray{CChar*, MAX_REQ_LAYERS_CNT} req_layers;
+    ElasticArray{ZString, MAX_REQ_LAYERS_CNT} req_layers;
 	req_layers.push("VK_LAYER_KHRONOS_validation");
 
 	if (!add_validation_layers(&req_layers))
@@ -37,20 +37,22 @@ $if ($feature(SF_DEBUG)):
 	}
 $endif
 
-    ElasticArray{CChar*, MAX_REQ_EXT_CNT} req_extensions;
-    req_extensions.push((CChar*)VK_KHR_SURFACE_EXTENSION_NAME);
+    ElasticArray{ZString, MAX_REQ_EXT_CNT} req_extensions;
+    req_extensions.push((ZString)VK_KHR_SURFACE_EXTENSION_NAME);
     req_extensions.push(platform::get_surface_ext());
 
 $if ($feature(SF_DEBUG)):
-	req_extensions.push((CChar*)VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	req_extensions.push((ZString)VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 $endif
 
+$if ($feature(SF_DEBUG)):
 	if (!check_req_extensions(&req_extensions)) {
 		return false;
 	}
+$endif
 
 	instance_ci.enabled_extension_count = (uint)req_extensions.size;
-	instance_ci.pp_enabled_extension_names = req_extensions.data();
+	instance_ci.pp_enabled_extension_names = (CChar**)req_extensions.data();
 
 	vk_check(vkCreateInstance(&instance_ci, null, &context.instance));
 
@@ -63,57 +65,48 @@ $endif
     return true;
 }
 
-fn bool add_validation_layers(ElasticArray{CChar*, MAX_REQ_LAYERS_CNT}* req_layers) @if ($feature(SF_DEBUG)) @private
+fn bool add_validation_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_layers) @private @if ($feature(SF_DEBUG))
 {
-
     ElasticArray{VkLayerProperties, MAX_AVAIL_LAYERS_CNT} avail_layers;
 	uint avail_layer_cnt @noinit;
 
-	vk_check(vk::vkEnumerateInstanceLayerProperties(&avail_layer_cnt, null));
+	vk_check(vkEnumerateInstanceLayerProperties(&avail_layer_cnt, null));
 	avail_layer_cnt = math::min(MAX_AVAIL_LAYERS_CNT, avail_layer_cnt);
 	avail_layers.resize(avail_layer_cnt);
-	vk_check(vk::vkEnumerateInstanceLayerProperties(&avail_layer_cnt, avail_layers.data()));
+	vk_check(vkEnumerateInstanceLayerProperties(&avail_layer_cnt, avail_layers.data()));
 
-	foreach (req_layer : req_layers.array_view()) {
-		bool found = false;
+	foreach OUTER: (req_layer : req_layers.array_view()) {
 		foreach (&avail_layer : avail_layers.array_view()) {
-			if (util::nullterm_str_eq(&avail_layer.layer_name, req_layer)) {
-				found = true;
-				break;
+			if ((ZString)&avail_layer.layer_name, req_layer) {
+				continue OUTER;
 			}
 		}
-		if (!found) {
-			logger::@logn(LogLevel.FATAL, "Required layer wasn't found: %s\nexiting", req_layer);
-			return false;
-		}
+		logger::logn(FATAL, "Required layer wasn't found: %s\nexiting", req_layer);
+		return false;
 	}
 
 	return true;
 }
 
-fn bool check_req_extensions(ElasticArray{CChar*, MAX_REQ_EXT_CNT}* req_extensions) @private
+fn bool check_req_extensions(ElasticArray{ZString, MAX_REQ_EXT_CNT}* req_extensions) @private @if($feature(SF_DEBUG))
 {
     ElasticArray{VkExtensionProperties, MAX_AVAIL_LAYERS_CNT} avail_extensions;
 
 	uint avail_ext_cnt @noinit;
-	vk_check(vk::vkEnumerateInstanceExtensionProperties(null, &avail_ext_cnt, null));
+	vk_check(vkEnumerateInstanceExtensionProperties(null, &avail_ext_cnt, null));
 	avail_ext_cnt = math::min(MAX_AVAIL_EXT_CNT, avail_ext_cnt);
 	avail_extensions.resize(avail_ext_cnt);
 
-	vk_check(vk::vkEnumerateInstanceExtensionProperties(null, &avail_ext_cnt, avail_extensions.data()));
+	vk_check(vkEnumerateInstanceExtensionProperties(null, &avail_ext_cnt, avail_extensions.data()));
 
-	foreach (req_ext : req_extensions.array_view()) {
-		bool found = false;
+	foreach OUTER: (req_ext : req_extensions.array_view()) {
 		foreach (&avail_ext : avail_extensions.array_view()) {
-			if (util::nullterm_str_eq(&avail_ext.extension_name, req_ext)) {
-				found = true;
-				break;
+			if ((ZString)&avail_ext.extension_name == req_ext) {
+				continue OUTER;
 			}
 		}
-		if (!found) {
-			logger::@logn(LogLevel.FATAL, "Required extension wasn't found: %s\nexiting", req_ext);
-			return false;
-		}
+		logger::logn(FATAL, "Required extension wasn't found: %s\nexiting", req_ext);
+		return false;
 	}
 
 	return true;
@@ -134,7 +127,7 @@ fn void create_debugger(VulkanContext* context) @if($feature(SF_DEBUG)) @private
     };
 
 	PFN_vkCreateDebugUtilsMessengerEXT create_debug_messenger =
-		(PFN_vkCreateDebugUtilsMessengerEXT)vk::vkGetInstanceProcAddr(context.instance, "vkCreateDebugUtilsMessengerEXT");
+		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context.instance, "vkCreateDebugUtilsMessengerEXT");
 
 	assert(create_debug_messenger != null, "Debug utils extension was not found");
 
@@ -150,16 +143,16 @@ fn VkBool32 vk_debug_callback(
 {
 	switch (message_severity) {
 	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-	        logger::@logn(LogLevel.ERROR, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	        logger::logn(ERROR, "%s", util::nullterm_str_to_slice(callback_data.p_message));
 	        break;
 	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-	        logger::@logn(LogLevel.WARN, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	        logger::logn(WARN, "%s", util::nullterm_str_to_slice(callback_data.p_message));
 	        break;
 	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-	        logger::@logn(LogLevel.INFO, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	        logger::logn(INFO, "%s", util::nullterm_str_to_slice(callback_data.p_message));
 	        break;
 	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-	        logger::@logn(LogLevel.TRACE, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	        logger::logn(TRACE, "%s", util::nullterm_str_to_slice(callback_data.p_message));
 	        break;
 		default: return VK_FALSE;
 	}

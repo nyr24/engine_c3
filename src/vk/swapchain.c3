@@ -6,7 +6,8 @@ import std::math;
 import logger;
 const MAX_SWAPCHAIN_IMG_CNT = 5u;
 
-struct VulkanSwapchain {
+struct VulkanSwapchain
+{
 	ElasticArray{VkImage, MAX_SWAPCHAIN_IMG_CNT} 		images;
 	ElasticArray{VkImageView, MAX_SWAPCHAIN_IMG_CNT} 	image_views;
 	VulkanImage					depth_image;
@@ -17,7 +18,8 @@ struct VulkanSwapchain {
 	uint 						curr_image;
 }
 
-enum SwapchainPresentRes {
+enum SwapchainPresentRes
+{
 	FAIL,
 	NEEDS_RECREATION,
 	SUCCESS,
@@ -26,11 +28,11 @@ enum SwapchainPresentRes {
 fn bool init_swapchain(VulkanContext* ctx, VkExtent2D extent)
 {
 	if (!ctx.swapchain.acquire_format_and_present_mode(&ctx.dev.swapchain_supp_info)) {
-		logger::@logn(LogLevel.FATAL, "Failed to acquire appropriate format for swapchain");
+		logger::logn(FATAL, "Failed to acquire appropriate format for swapchain");
 		return false;
 	}
 	if (!ctx.swapchain.create_inner(ctx, extent)) {
-		logger::@logn(LogLevel.FATAL, "Failed create swapchain");
+		logger::logn(FATAL, "Failed create swapchain");
 		return false;
 	}
 
@@ -47,7 +49,7 @@ fn bool VulkanSwapchain.recreate(&swapchain, VulkanContext* ctx, VkExtent2D exte
 	return true;
 }
 
-fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D extent) @private
+fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D extent)
 {
 	VulkanDevice* dev = &ctx.dev;
 	SwapchainSupportInfo* supp_info = &dev.swapchain_supp_info;
@@ -111,7 +113,7 @@ fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D 
 
     if (!dev.detect_depth_format()) {
         dev.depth_fmt = VK_FORMAT_UNDEFINED;
-        logger::@logn(LogLevel.FATAL, "Failed to find a supported format");
+        logger::logn(FATAL, "Failed to find a supported format");
 		return false;
     }
 
@@ -123,13 +125,13 @@ fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D 
 	    VK_IMAGE_LAYOUT_UNDEFINED,
 	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 	)) {
-		logger::@logn(LogLevel.FATAL, "Failed to create a depth image");
+		logger::logn(FATAL, "Failed to create a depth image");
 		return false;
 	}
 
 	swapchain.curr_image = 0;
 
-	logger::@logn(LogLevel.INFO, "Swapchain created successfully!");
+	logger::logn(INFO, "Swapchain created successfully!");
 	return true;
 }
 
@@ -138,16 +140,15 @@ fn Maybe{uint} VulkanSwapchain.acquire_next_image_index(
     VulkanContext* ctx,
     ulong timeout_ns,
     VkSemaphore image_available_semaphore,
-    VkFence fence,
 ) {
 	uint image_index @noinit;
-    VkResult result = vkAcquireNextImageKHR(ctx.dev.log_dev, swapchain.handle, timeout_ns, image_available_semaphore, fence, &image_index);
+    VkResult result = vkAcquireNextImageKHR(ctx.dev.log_dev, swapchain.handle, timeout_ns, image_available_semaphore, null, &image_index);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         swapchain.recreate(ctx, ctx.renderer.scissors.extent);
         return maybe::EMPTY;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        logger::@logn(LogLevel.FATAL, "Failed to acquire swapchain image!");
+        logger::logn(FATAL, "Failed to acquire swapchain image!");
         return maybe::EMPTY;
     }
 	swapchain.curr_image = image_index;
@@ -176,13 +177,13 @@ fn SwapchainPresentRes VulkanSwapchain.present(
         swapchain.recreate(ctx, ctx.renderer.scissors.extent);
 		return SwapchainPresentRes.NEEDS_RECREATION;
     } else if (result != VK_SUCCESS) {
-        logger::@logn(LogLevel.FATAL, "Failed to present swapchain image");
+        logger::logn(FATAL, "Failed to present swapchain image");
 		return SwapchainPresentRes.FAIL;
     }
 	return SwapchainPresentRes.SUCCESS;
 }
 
-fn bool VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSupportInfo* supp_info) @private
+fn bool VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSupportInfo* supp_info)
 {
 	bool found = false;
 	foreach (&fmt : supp_info.formats) {

@@ -1,6 +1,4 @@
-module game_engine;
-
-import app;
+module engine;
 
 const INIT_WND_WIDTH = 800u;
 const INIT_WND_HEIGHT = 600u;
@@ -19,6 +17,8 @@ fn int main(String[] args)
 	}
 	defer app.shutdown();
 
+	app.run();
+	
 	return 0;
 }
 

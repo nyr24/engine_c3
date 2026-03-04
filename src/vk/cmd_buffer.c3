@@ -1,7 +1,9 @@
 module vk;
 
+import engine;
+import logger;
 import std::collections::elastic_array;
-import soa;
+import std::collections::maybe;
 
 // Buffer
 
@@ -20,16 +22,13 @@ struct VulkanCmdBuffer
 	VulkanCmdBufferState state;
 }
 
-struct VulkanCmdBufferSOA <CAP>
+<*
+	@require handle != null : "Shouldn't be null handle"
+*>
+fn void VulkanCmdBuffer.init(&cmd_buff, VkCommandBuffer handle)
 {
-	ElasticArray{VkCommandBuffer, FRAMES_IN_FLIGHT}      handles;
-	ElasticArray{VulkanCmdBufferState, FRAMES_IN_FLIGHT} states;
-}
-
-struct VulkanCmdBufferSOAView
-{
-	VkCommandBuffer[]      handles;
-	VulkanCmdBufferState[] states;
+	cmd_buff.handle = handle;
+	cmd_buff.state = READY;
 }
 
 <*
@@ -42,7 +41,7 @@ fn void VulkanCmdBuffer.begin_recording(&cmd_buff, VkCommandBufferUsageFlags fla
         .flags = flags,
     };
     vk_check(vkBeginCommandBuffer(cmd_buff.handle, &begin_info));
-    cmd_buff.state = VulkanCmdBufferState.RECORDING_BEGIN;
+    cmd_buff.state = RECORDING_BEGIN;
 }
 
 <*
@@ -51,16 +50,90 @@ fn void VulkanCmdBuffer.begin_recording(&cmd_buff, VkCommandBufferUsageFlags fla
 fn void VulkanCmdBuffer.end_recording(&cmd_buff)
 {
     vk_check(vkEndCommandBuffer(cmd_buff.handle));
-    cmd_buff.state = VulkanCmdBufferState.RECORDING_END;
+    cmd_buff.state = RECORDING_END;
+}
+
+<*
+	@require cmd_buff.state == VulkanCmdBufferState.RECORDING_END : "Should be in RECORDING_END state"
+*>
+fn void VulkanCmdBuffer.submit(
+	&cmd_buff,
+	VulkanContext* ctx,
+	VkQueue queue,
+	VkSubmitInfo* submit_info,
+	VulkanFence* fence = null,
+)
+{
+    if (!fence) {
+        vk_check(vkQueueSubmit(queue, 1, submit_info, null));
+        cmd_buff.state = SUBMITTED;
+    }
+	else {
+	    if (fence.is_signaled) {
+	        logger::logn(INFO, "Fence can't be in signaled state when submitting a queue, resetting...");
+	        fence.reset(ctx);
+	    }
+	    vk_check(vkQueueSubmit(queue, 1, submit_info, fence.handle));
+	    cmd_buff.state = SUBMITTED;
+	}
 }
 
 <*
 	@require cmd_buff.state == VulkanCmdBufferState.SUBMITTED : "Should be in SUBMITTED state"
 *>
-fn void VulkanCmdBuffer.reset(&cmd_buff, VkCommandBufferResetFlags flags)
+fn void VulkanCmdBuffer.reset(&cmd_buff, VkCommandBufferResetFlags flags = 0)
 {
     vk_check(vkResetCommandBuffer(cmd_buff.handle, flags));
-    cmd_buff.state = VulkanCmdBufferState.READY;
+    cmd_buff.state = READY;
+}
+
+fn void VulkanCmdBuffer.cmd_begin_rendering(&cmd_buff, VkRenderingInfo* rendering_info)
+{
+    vkCmdBeginRendering(cmd_buff.handle, rendering_info);
+}
+
+fn void VulkanCmdBuffer.cmd_end_rendering(&cmd_buff)
+{
+    vkCmdEndRendering(cmd_buff.handle);
+}
+
+fn void VulkanCmdBuffer.cmd_draw_geometry(&cmd_buff, GeometryView view)
+{
+	vkCmdDrawIndexed(cmd_buff.handle, view.indices_count, 1, view.indices_offset, view.vertices_offset, 0); 
+}
+
+fn void VulkanCmdBuffer.cmd_copy_data_between_buff(
+	&cmd_buff,
+	VulkanBuffer src,
+	VulkanBuffer dst,
+	VkBufferCopy* copy_region,
+)
+{
+	vkCmdCopyBuffer(cmd_buff.handle, src.handle, dst.handle, 1, copy_region);
+}
+
+fn void VulkanCmdBuffer.cmd_copy_data_from_buff_to_img(
+	&cmd_buff,
+	VkBuffer src_buffer,
+	VulkanImage* dst_image,
+	VkImageLayout dst_image_layout
+)
+{
+    VkBufferImageCopy copy_region = {
+        .image_subresource = {
+            .aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mip_level = 0,
+            .base_array_layer = 0,
+            .layer_count = 1
+        },
+        .image_extent = {
+            .width = dst_image.width,
+            .height = dst_image.height,
+            .depth = 1
+        }
+    };
+    
+    vkCmdCopyBufferToImage(cmd_buff.handle, src_buffer, dst_image.handle, dst_image_layout, 1, &copy_region);
 }
 
 // Pool
@@ -77,36 +150,29 @@ fn void VulkanCmdPool.init(&cmd_pool, VulkanContext* ctx, char queue_fam_ind)
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queue_family_index = (uint)queue_fam_ind,
     };
-    vk_check(vkCreateCommandPool(ctx.dev.log_dev, &cmd_pool_ci, ctx.vk_alloc, &cmd_pool.handle));
+   vk_check(vkCreateCommandPool(ctx.dev.log_dev, &cmd_pool_ci, ctx.vk_alloc, &cmd_pool.handle));
 }
 
 <*
-	@require out_cmd_buffs.handles.len > 0
+	@require out_cmd_buffs.len > 0 : "Should not be empty array"
 *>
-fn void VulkanCmdPool.allocate_cmd_buffers(&cmd_pool, VulkanDevice* dev, VulkanCmdBufferSOAView out_cmd_buffs, bool is_primary = true)
+fn void VulkanCmdPool.allocate_cmd_buffers(&cmd_pool, VulkanDevice* dev, VkCommandBuffer[] out_cmd_buffs, bool is_primary = true)
 {
     VkCommandBufferAllocateInfo alloc_info = {
         .s_type = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .command_pool = cmd_pool.handle,
         .level = is_primary ? VK_COMMAND_BUFFER_LEVEL_PRIMARY : VK_COMMAND_BUFFER_LEVEL_SECONDARY,
-        .command_buffer_count = (uint)soa::@len(out_cmd_buffs),
+        .command_buffer_count = out_cmd_buffs.len,
     };
-
-    vk_check(vkAllocateCommandBuffers(dev.log_dev, &alloc_info, out_cmd_buffs.handles.ptr));
-	foreach (&state : out_cmd_buffs.states) {
-        *state = VulkanCmdBufferState.READY;
-    }
+    vk_check(vkAllocateCommandBuffers(dev.log_dev, &alloc_info, out_cmd_buffs.ptr));
 }
 
 <*
-	@require out_cmd_buffs.handles.len > 0
+	@require out_cmd_buffs.len > 0 : "Should not be empty array"
 *>
-fn void VulkanCmdPool.free_cmd_buffers(&cmd_pool, VulkanDevice* dev, VulkanCmdBufferSOAView out_cmd_buffs)
+fn void VulkanCmdPool.free_cmd_buffers(&cmd_pool, VulkanDevice* dev, VkCommandBuffer[] out_cmd_buffs)
 {
-    vkFreeCommandBuffers(dev.log_dev, cmd_pool.handle, out_cmd_buffs.handles.len, out_cmd_buffs.handles.ptr);
-    foreach (&state : out_cmd_buffs.states) {
-        *state = VulkanCmdBufferState.NOT_ALLOCATED;
-    }
+    vkFreeCommandBuffers(dev.log_dev, cmd_pool.handle, out_cmd_buffs.len, out_cmd_buffs.ptr);
 }
 
 fn void VulkanCmdPool.destroy(&cmd_pool, VulkanContext* ctx)

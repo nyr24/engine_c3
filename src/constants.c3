@@ -1,9 +1,10 @@
-module constants;
+module engine;
 
 import vk;
+import std::math;
 
-alias ColorRGB = float[3];
-alias ColorRGBA = float[4];
+alias ColorRGB = Vec3;
+alias ColorRGBA = Vec4;
 
 const ColorRGB COLOR_WHITE_RGB  = {1.0f, 1.0f, 1.0f};
 const ColorRGB COLOR_BLACK_RGB  = {0.0f, 0.0f, 0.0f};

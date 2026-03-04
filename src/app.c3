@@ -1,13 +1,13 @@
-module app;
+module engine;
 
 import window;
 import vk;
 import logger;
-import event;
+import glfw;
 import arena;
 
 const ARENA_MIN_REGION_SIZE = 4096u;
-const TEMP_ALLOCATOR_CAPACITY = 4096u * 16u;
+const ARENA_INIT_REGION_CAPACITY = 16;
 
 struct AppConfig
 {
@@ -21,34 +21,44 @@ struct App
 	EventSystem 	event_sys;
 	VulkanContext 	vk_ctx;
 	ArenaAlloc		main_alloc;
-	Allocator		temp_alloc;
+	ArenaAlloc		temp_alloc;
 	Window			window;
 }
 
 fn bool App.init(&app, AppConfig config)
 {
-	app.main_alloc.init(mem, 10, ARENA_MIN_REGION_SIZE, ARENA_MIN_REGION_SIZE);
-	app.temp_alloc = allocator::new_temp_allocator(mem, TEMP_ALLOCATOR_CAPACITY)!!;
+	app.main_alloc.init(mem, ARENA_MIN_REGION_SIZE, ARENA_MIN_REGION_SIZE, ARENA_INIT_REGION_CAPACITY);
+	app.temp_alloc.init(mem, ARENA_MIN_REGION_SIZE, ARENA_MIN_REGION_SIZE, ARENA_INIT_REGION_CAPACITY);
 
 	Window? window = window::create("hello", 800, 600);
 	if (catch window) {
-		logger::@logn(LogLevel.FATAL, "Failed failed to initialize a window");
+		logger::logn(FATAL, "Failed failed to initialize a window");
 		return false;
 	}
 	app.window = window;
 
 	if (catch err = vk::init_vk(app, &config, &app.window)) {
-		logger::@logn(LogLevel.FATAL, "Failed to initialize vulkan, reason: %s", err);
+		logger::logn(FATAL, "Failed to initialize vulkan, reason: %s", err);
 		return false;
 	}
 
 	return true;
 }
 
+fn void App.run(&app)
+{
+	while (!glfw::windowShouldClose(app.window.handle)) {
+		glfw::pollEvents();
+		vk::begin_frame(&app.vk_ctx);
+		vk::draw_frame(&app.vk_ctx);
+		vk::end_frame(&app.vk_ctx);
+	}
+}
+
 fn void App.shutdown(&app)
 {
 	app.main_alloc.destroy();
-	((TempAllocator*)app.temp_alloc).free();
+	app.temp_alloc.destroy();
 	app.vk_ctx.destroy();
 	app.window.destroy();
 }

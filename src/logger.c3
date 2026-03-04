@@ -38,11 +38,11 @@ String[LogLevel._COUNT] log_level_as_str = {
     "[FATAL]: ",
 };
 
-macro void log_inner(LogLevel $level, bool $newline, String $fmt, args...) @private
+macro void log_inner(LogLevel $level, bool newline, String fmt, args...) @private
 {
 	char[BUFF_LEN] buff;
 	char[MSG_BUFF_LEN] msg_buff;
-	char[] msg_view = io::bprintf(msg_buff[..], $fmt, args)!!;
+	char[] msg_view = io::bprintf(msg_buff[..], fmt, args)!!;
 	char[] log_view = io::bprintf(
 		buff[..],
 		"\x1b[%sm%s%s\x1b[0m",
@@ -51,39 +51,39 @@ macro void log_inner(LogLevel $level, bool $newline, String $fmt, args...) @priv
 		(String)msg_view
 	)!!;
 
-	$if !$newline:
+	if (!newline) {
 		$if ($level < LogLevel.WARN):
 			io::printf("%s", (String)log_view);
 		$else
 			io::eprintf("%s", (String)log_view);
 		$endif
-	$else
+	} else {
 		$if ($level < LogLevel.WARN):
 			io::printfn("%s", (String)log_view);
 		$else
 			io::eprintfn("%s", (String)log_view);
 		$endif
-	$endif
+	}
 }
 
-macro @log(LogLevel $level, String $fmt, args...)
+macro log(LogLevel $level, String fmt, args...)
 {
 	$if ($feature(SF_DEBUG)):
-		log_inner($level, false, $fmt, args);
+		log_inner($level, false, fmt, args);
 	$else
 		$if	($level >= LogLevel.ERROR):
-			log_inner($level, false, $fmt, args);
+			log_inner($level, false, fmt, args);
 		$endif
 	$endif
 }
 
-macro @logn(LogLevel $level, String $fmt, args...)
+macro logn(LogLevel $level, String fmt, args...)
 {
 	$if ($feature(SF_DEBUG)):
-		log_inner($level, true, $fmt, args);
+		log_inner($level, true, fmt, args);
 	$else
 		$if	($level >= LogLevel.ERROR):
-			log_inner($level, true, $fmt, args);
+			log_inner($level, true, fmt, args);
 		$endif
 	$endif
 }

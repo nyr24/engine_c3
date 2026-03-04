@@ -62,11 +62,7 @@ fn bool create_image(
     VkMemoryRequirements mem_reqs @noinit;
     vkGetImageMemoryRequirements(ctx.dev.log_dev, out_image.handle, &mem_reqs);
 
-	uint? mem_type_ind = ctx.dev.find_mem_type_index(mem_reqs.memory_type_bits, mem_flags).get();
-	if (catch err = mem_type_ind) {
-        logger::@logn(LogLevel.FATAL, "Required memory type wasn't found. Image is not valid");
-        return false;
-    };
+	uint mem_type_ind = ctx.dev.find_mem_type_index(mem_reqs.memory_type_bits, mem_flags)!!;
 
     VkMemoryAllocateInfo alloc_info = {
         .s_type = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -94,7 +90,7 @@ fn VkImageView create_view_from_raw(
 	VulkanContext* ctx,
 	VkImage raw_image,
 	VkFormat format,
-	VkImageViewType type = VK_IMAGE_TYPE_2D,
+	VkImageViewType type = VK_IMAGE_VIEW_TYPE_2D,
 	VkImageAspectFlags aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
 )
 {

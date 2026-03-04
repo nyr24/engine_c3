@@ -1,12 +1,11 @@
 module vk;
 
-import std::collections::elastic_array;
-import std::collections::list;
-import std::collections::set;
-import std::collections::maybe;
-import std::math;
 import util;
 import logger;
+import std::collections::elastic_array;
+import std::collections::list;
+import std::collections::maybe;
+import std::math;
 
 const MAX_PHYS_DEVS = 10u;
 const MAX_FORMATS = 128u;
@@ -53,13 +52,15 @@ struct SwapchainSupportInfo {
     VkSurfaceCapabilitiesKHR 							capabilities;
 }
 
+faultdef MEM_TYPE_IND_NOT_FOUND;
+
 fn bool init_device(VulkanContext* ctx)
 {
 	VulkanDevice* dev = &ctx.dev;
 	uint device_cnt @noinit;
 	vk_check(vkEnumeratePhysicalDevices(ctx.instance, &device_cnt, null));
 	if (!device_cnt) {
-		logger::@logn(LogLevel.FATAL, "Available devices were not found");
+		logger::logn(FATAL, "Available devices were not found");
 	    return false;
 	}
 
@@ -82,14 +83,14 @@ fn bool init_device(VulkanContext* ctx)
 	}
 
 	if (!selected_phys_dev) {
-		logger::@logn(LogLevel.FATAL, "Appropriate device was not found");
+		logger::logn(FATAL, "Appropriate device was not found");
 		return false;
 	}
 
 	dev.phys_dev = selected_phys_dev;
 
 	if (!dev.detect_depth_format()) {
-		logger::@logn(LogLevel.FATAL, "Suitable depth format was not detected");
+		logger::logn(FATAL, "Suitable depth format was not detected");
 		return false;
 	}
 
@@ -99,7 +100,7 @@ fn bool init_device(VulkanContext* ctx)
 	ElasticArray{char, MAX_QUEUE_FAMILIES} selected_fam_queue_cnts;
 	
 	if (!find_queue_families(selected_phys_dev, ctx.surface, &selected_fam_queue_cnts, &dev.queue_indices)) {
-		logger::@logn(LogLevel.FATAL, "Failed to find required queue families on the device");
+		logger::logn(FATAL, "Failed to find required queue families on the device");
 		return false;
 	}
 
@@ -166,14 +167,20 @@ fn bool init_device(VulkanContext* ctx)
 }
 
 
-fn Maybe{uint} VulkanDevice.find_mem_type_index(&dev, uint type_filter, VkMemoryPropertyFlagBits mem_flags)
+fn uint? VulkanDevice.find_mem_type_index(&dev, uint type_filter, VkMemoryPropertyFlagBits mem_flags)
 {
 	foreach (uint i, mem_type : dev.mem_props.memory_types[:dev.mem_props.memory_type_count]) {
 	    if (((type_filter & (1 << i)) > 0) && ((mem_type.property_flags & mem_flags) == mem_flags)) {
-			return maybe::value(i);
+			return i;
 	    }
 	}
-	return maybe::EMPTY;
+	logger::logn(FATAL, "Failed to find memory type index");
+	return MEM_TYPE_IND_NOT_FOUND~;
+}
+
+fn bool VulkanDevice.graphics_matches_transfer_queue(&dev)
+{
+	return dev.queue_indices.graphics.fam == dev.queue_indices.transfer.fam;
 }
 
 fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_extensions, SwapchainSupportInfo* out_swapchain_supp) @private
@@ -181,13 +188,13 @@ fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_ext
 	VkPhysicalDeviceProperties dev_props @noinit;
 	vkGetPhysicalDeviceProperties(dev, &dev_props);
 	if (dev_props.device_type != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-		logger::@logn(LogLevel.TRACE, "Device is not suitable, not a discrete GPU, skipping...");
+		logger::logn(TRACE, "Device is not suitable, not a discrete GPU, skipping...");
 		return false;
 	}
 
 	query_swapchain_support(dev, surface, out_swapchain_supp);
 	if (out_swapchain_supp.present_modes.size == 0) {
-		logger::@logn(LogLevel.TRACE, "Physical device is not suitable, doesn't have present modes, skipping...");
+		logger::logn(TRACE, "Physical device is not suitable, doesn't have present modes, skipping...");
 		return false;
 	}
 
@@ -196,7 +203,7 @@ fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_ext
 	uint avail_ext_cnt @noinit;
 	vk_check(vkEnumerateDeviceExtensionProperties(dev, null, &avail_ext_cnt, null));
 	avail_extensions.tinit(avail_ext_cnt);
-	avail_extensions.set_size(avail_ext_cnt);
+	avail_extensions.resize(avail_ext_cnt);
 	defer avail_extensions.free();
 
 	vk_check(vkEnumerateDeviceExtensionProperties(dev, null, &avail_ext_cnt, &avail_extensions[0]));
@@ -210,7 +217,7 @@ fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_ext
 			}
 		}
 		if (!found) {
-			logger::@logn(LogLevel.INFO, "Required device extension was not found, extension name: %s, skipping...", req_ext);
+			logger::logn(INFO, "Required device extension was not found, extension name: %s, skipping...", req_ext);
 			return false;
 		}
 	}
@@ -219,7 +226,7 @@ fn bool is_suitable(VkPhysicalDevice dev, VkSurfaceKHR surface, CChar*[] req_ext
 	vkGetPhysicalDeviceFeatures(dev, &dev_features);
 
 	if (!dev_features.sampler_anisotropy) {
-		logger::@logn(LogLevel.INFO, "Physical device does not have sampler_anisotropy, which is required feature, skipping...");
+		logger::logn(INFO, "Physical device does not have sampler_anisotropy, which is required feature, skipping...");
 		return false;
 	}
 
@@ -299,7 +306,7 @@ fn bool find_queue_families(
 	        out_indices.graphics = ind;
 			selected_fam_queue_cnts_slice[ind.fam]++;
 	    } else {
-	        logger::@logn(LogLevel.FATAL, "Appropriate queue for Graphics was not found on selected vulkan device");
+	        logger::logn(FATAL, "Appropriate queue for Graphics was not found on selected vulkan device");
 	        return false;
 	    }
 	}

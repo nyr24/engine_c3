@@ -1,10 +1,9 @@
 module vk;
 
+import engine;
+import logger;
 import std::collections::elastic_array;
 import std::io;
-import constants;
-import logger;
-import mesh;
 
 const MAX_PIPELINE_CNT = 5u;
 const MAX_ATTRIB_CNT = 10u;
@@ -36,6 +35,16 @@ struct VulkanPipeline
 {
 	VkPipeline       handle;
     VkPipelineLayout layout;
+}
+
+struct VulkanDescriptorSetLayout
+{
+    VkDescriptorSetLayout handle;
+}
+
+struct VulkanDescriptorPool
+{
+	VkDescriptorPool handle;
 }
 
 struct VulkanShaderConfig
@@ -121,84 +130,6 @@ fn VulkanShader create_shader(VulkanContext* ctx, String file_name, VulkanShader
 	}
 	
 	return shader;
-}
-
-fn VulkanShaderModule? create_shader_module(VulkanContext* ctx, String file_name, VulkanShaderStageKindBits stage_bits) @private
-{
-	DString full_path;
-	full_path.init(ctx.app_ctx.temp_alloc, constants::SHADER_PATH.len + file_name.len);
-	defer full_path.free();
-	full_path.append_bytes(constants::SHADER_PATH);
-	full_path.append_bytes(file_name);
-
-	char[]? file_contents = file::load(ctx.app_ctx.temp_alloc, full_path.str_view());
-	if (catch excuse = file_contents) {
-		logger::@logn(LogLevel.ERROR, "Shader file read failed, path: %s", full_path.str_view());
-		return excuse~;
-	}
-	defer ctx.app_ctx.temp_alloc.release(file_contents.ptr, false);
-	
-    VkShaderModuleCreateInfo create_info = {
-        .s_type = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .code_size = file_contents.len,
-        .p_code = (uint*)file_contents.ptr,
-    };
-
-    VulkanShaderModule shader_module;
-	shader_module.init_shader_stages(stage_bits);
-
-    vk_check(vkCreateShaderModule(ctx.dev.log_dev, &create_info, ctx.vk_alloc, &shader_module.handle));
-    return shader_module;
-}
-
-fn void VulkanShaderModule.init_shader_stages(&mod, VulkanShaderStageKindBits stage_bits) @private
-{
-	if (stage_bits & VulkanShaderStageKind.VERTEX) {
-		mod.stages.push({ (CChar*)constants::VERTEX_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.VERTEX });
-	}
-	if (stage_bits & VulkanShaderStageKind.FRAGMENT) {
-		mod.stages.push({ (CChar*)constants::FRAGMENT_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.FRAGMENT });
-	}
-	if (stage_bits & VulkanShaderStageKind.COMPUTE) {
-		mod.stages.push({ (CChar*)constants::COMPUTE_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.COMPUTE });
-	}
-	if (stage_bits & VulkanShaderStageKind.GEOMETRY) {
-		mod.stages.push({ (CChar*)constants::GEOMETRY_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.GEOMETRY });
-	}
-	if (stage_bits & VulkanShaderStageKind.TESSELATION_CONTROL) {
-		mod.stages.push({ (CChar*)constants::TESSELATION_CONTROL_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.TESSELATION_CONTROL });
-	}
-	if (stage_bits & VulkanShaderStageKind.TESSELATION_EVAL) {
-		mod.stages.push({ (CChar*)constants::TESSELATION_EVAL_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.TESSELATION_EVAL });
-	}
-}
-
-<*
-	@require mod.stages.size == out_stages.len : "Lengths should be equal"
-*>
-fn void VulkanShaderModule.get_shader_stage_infos(&mod, VkPipelineShaderStageCreateInfo[] out_stages) @private
-{
-	foreach (uint i, stage : mod.stages) {
-		VkPipelineShaderStageCreateInfo stage_ci;
-		stage_ci.s_type = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
-		stage_ci.stage = map_shader_stage_to_vk_stage(stage.kind);
-		stage_ci.p_name = stage.entry_name;
-		stage_ci.mod = mod.handle;
-		out_stages[i] = stage_ci;
-	}
-}
-
-fn VkShaderStageFlagBits map_shader_stage_to_vk_stage(VulkanShaderStageKind stage) @private
-{
-	switch (stage) {
-		case VulkanShaderStageKind.VERTEX: return VK_SHADER_STAGE_VERTEX_BIT;
-		case VulkanShaderStageKind.FRAGMENT: return  VK_SHADER_STAGE_FRAGMENT_BIT;
-		case VulkanShaderStageKind.COMPUTE: return  VK_SHADER_STAGE_COMPUTE_BIT;
-		case VulkanShaderStageKind.GEOMETRY: return  VK_SHADER_STAGE_GEOMETRY_BIT;
-		case VulkanShaderStageKind.TESSELATION_CONTROL: return  VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-		case VulkanShaderStageKind.TESSELATION_EVAL: return  VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-		default: unreachable();
-	}
 }
 
 fn void VulkanShader.create_pipeline(
@@ -320,12 +251,47 @@ fn void VulkanShader.create_pipeline(
     };
 
     vk_check(vkCreateGraphicsPipelines(ctx.dev.log_dev, null, 1, &pipeline_ci, ctx.vk_alloc, &out_pipeline.handle));
-    logger::@logn(INFO, "Graphics pipeline was successfully created!");
+    logger::logn(INFO, "Graphics pipeline was successfully created!");
+}
+
+// --- VulkanPipeline ---
+
+fn VulkanPipeline* VulkanShader.get_curr_pipeline(&shader) @inline
+{
+	return &shader.pipelines[shader.curr_pipeline];
+}
+
+fn void VulkanShader.bind_curr_pipeline(
+	&shader,
+	VulkanCmdBuffer graphics_cmd_buffer,
+)
+{
+	VulkanPipeline* pipeline = shader.get_curr_pipeline();
+	pipeline.bind(graphics_cmd_buffer);
+}
+
+fn void VulkanShader.bind_descriptor_sets(&shader, VulkanCmdBuffer cmd_buff, VkPipelineBindPoint bind_point, VkDescriptorSet[] descriptor_sets, uint start_index = 0)
+{
+	VulkanPipeline* pipeline = shader.get_curr_pipeline();
+	pipeline.bind_descriptor_sets(cmd_buff, bind_point, descriptor_sets, start_index);
+}
+
+fn void VulkanPipeline.bind(
+	&pipeline,
+	VulkanCmdBuffer graphics_cmd_buffer,
+)
+{
+    vkCmdBindPipeline(graphics_cmd_buffer.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+}
+
+fn void VulkanPipeline.bind_descriptor_sets(&pipeline, VulkanCmdBuffer cmd_buff, VkPipelineBindPoint bind_point, VkDescriptorSet[] descriptor_sets, uint start_index = 0)
+{
+    vkCmdBindDescriptorSets(cmd_buff.handle, bind_point, pipeline.layout, start_index, descriptor_sets.len, descriptor_sets.ptr, 0, null);
 }
 
 fn void VulkanShader.create_descriptor_state(&shader, VulkanContext* ctx, VulkanShaderConfig* conf)
 {
-	uint entity_count = conf.max_entities_per_frame * constants::FRAMES_IN_FLIGHT;
+	uint entity_count = conf.max_entities_per_frame * engine::FRAMES_IN_FLIGHT;
 
 	foreach (uint i, bindings : conf.descriptor_bindings) {
 	    ElasticArray{VkDescriptorType, MAX_DESCRIPTOR_BINDING_CNT} descriptor_types;
@@ -345,21 +311,104 @@ fn VkVertexInputBindingDescription get_binding_descr(char binding_index)
 {
     return {
         .binding = (uint)binding_index,
-        .stride = mesh::Vertex.sizeof,
+        .stride = Vertex.sizeof,
         .input_rate = VK_VERTEX_INPUT_RATE_VERTEX,
     };
 }
 
-// VulkanDescriptorPool
+// ---- VulkanShaderModule ---
 
-struct VulkanDescriptorPool
+fn VulkanShaderModule? create_shader_module(
+	VulkanContext* ctx,
+	String file_name,
+	VulkanShaderStageKindBits stage_bits
+) => @pool()
 {
-	VkDescriptorPool handle;
+	DString full_path;
+	full_path.tinit(engine::SHADER_PATH.len + file_name.len);
+	full_path.append_bytes(engine::SHADER_PATH);
+	full_path.append_bytes(file_name);
+
+	char[]? file_contents = file::load(tmem, full_path.str_view());
+	if (catch excuse = file_contents) {
+		logger::logn(ERROR, "Shader file read failed, path: %s", full_path.str_view());
+		return excuse~;
+	}
+	
+    VkShaderModuleCreateInfo create_info = {
+        .s_type = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .code_size = file_contents.len,
+        .p_code = (uint*)file_contents.ptr,
+    };
+
+    VulkanShaderModule shader_module;
+	shader_module.init_shader_stages(stage_bits);
+
+    vk_check(vkCreateShaderModule(ctx.dev.log_dev, &create_info, ctx.vk_alloc, &shader_module.handle));
+    return shader_module;
 }
+
+fn void VulkanShaderModule.init_shader_stages(&mod, VulkanShaderStageKindBits stage_bits)
+{
+	if (stage_bits & VulkanShaderStageKind.VERTEX) {
+		mod.stages.push({ (CChar*)engine::VERTEX_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.VERTEX });
+	}
+	if (stage_bits & VulkanShaderStageKind.FRAGMENT) {
+		mod.stages.push({ (CChar*)engine::FRAGMENT_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.FRAGMENT });
+	}
+	if (stage_bits & VulkanShaderStageKind.COMPUTE) {
+		mod.stages.push({ (CChar*)engine::COMPUTE_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.COMPUTE });
+	}
+	if (stage_bits & VulkanShaderStageKind.GEOMETRY) {
+		mod.stages.push({ (CChar*)engine::GEOMETRY_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.GEOMETRY });
+	}
+	if (stage_bits & VulkanShaderStageKind.TESSELATION_CONTROL) {
+		mod.stages.push({ (CChar*)engine::TESSELATION_CONTROL_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.TESSELATION_CONTROL });
+	}
+	if (stage_bits & VulkanShaderStageKind.TESSELATION_EVAL) {
+		mod.stages.push({ (CChar*)engine::TESSELATION_EVAL_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.TESSELATION_EVAL });
+	}
+}
+
+<*
+	@require mod.stages.size == out_stages.len : "Lengths should be equal"
+*>
+fn void VulkanShaderModule.get_shader_stage_infos(&mod, VkPipelineShaderStageCreateInfo[] out_stages)
+{
+	foreach (uint i, stage : mod.stages) {
+		VkPipelineShaderStageCreateInfo stage_ci;
+		stage_ci.s_type = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
+		stage_ci.stage = map_shader_stage_to_vk_stage(stage.kind);
+		stage_ci.p_name = stage.entry_name;
+		stage_ci.mod = mod.handle;
+		out_stages[i] = stage_ci;
+	}
+}
+
+fn VkShaderStageFlagBits map_shader_stage_to_vk_stage(VulkanShaderStageKind stage) @private
+{
+	switch (stage) {
+		case VulkanShaderStageKind.VERTEX: return VK_SHADER_STAGE_VERTEX_BIT;
+		case VulkanShaderStageKind.FRAGMENT: return  VK_SHADER_STAGE_FRAGMENT_BIT;
+		case VulkanShaderStageKind.COMPUTE: return  VK_SHADER_STAGE_COMPUTE_BIT;
+		case VulkanShaderStageKind.GEOMETRY: return  VK_SHADER_STAGE_GEOMETRY_BIT;
+		case VulkanShaderStageKind.TESSELATION_CONTROL: return  VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+		case VulkanShaderStageKind.TESSELATION_EVAL: return  VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+		default: unreachable();
+	}
+}
+
+// VulkanDescriptorPool
 
 fn VulkanDescriptorPool create_descriptor_pool(VulkanContext* ctx, VkDescriptorPoolSize[] pool_sizes, uint max_sets)
 {
 	VulkanDescriptorPool pool @noinit;
+	pool.init(ctx, pool_sizes, max_sets);
+	return pool;
+}
+
+fn void VulkanDescriptorPool.init(&pool, VulkanContext* ctx, VkDescriptorPoolSize[] pool_sizes, uint max_sets)
+{
     VkDescriptorPoolCreateInfo descriptor_pool_ci = {
         .s_type = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .max_sets = max_sets,
@@ -367,11 +416,10 @@ fn VulkanDescriptorPool create_descriptor_pool(VulkanContext* ctx, VkDescriptorP
         .p_pool_sizes = pool_sizes.ptr,
     };
     vk_check(vkCreateDescriptorPool(ctx.dev.log_dev, &descriptor_pool_ci, ctx.vk_alloc, &pool.handle)); 
-	return pool;
 }
 
 <*
-	@require layouts.len == sets.len
+	@require layouts.len == sets.len : "Lengths should be equal"
 *>
 fn void VulkanDescriptorPool.allocate_sets(&pool, VulkanDevice* dev, VulkanDescriptorSetLayout[] layouts, VkDescriptorSet[] sets)
 {
@@ -387,21 +435,21 @@ fn void VulkanDescriptorPool.allocate_sets(&pool, VulkanDevice* dev, VulkanDescr
 
 // VulkanDescriptorSetLayout
 
-struct VulkanDescriptorSetLayout
-{
-    VkDescriptorSetLayout handle;
-}
-
 fn VulkanDescriptorSetLayout create_descriptor_set_layout(VulkanContext* ctx, VkDescriptorSetLayoutBinding[] bindings)
 {
 	VulkanDescriptorSetLayout layout @noinit;
+	layout.init(ctx, bindings);
+	return layout;
+}
+
+fn void VulkanDescriptorSetLayout.init(&layout, VulkanContext* ctx, VkDescriptorSetLayoutBinding[] bindings)
+{
     VkDescriptorSetLayoutCreateInfo layout_ci = {
         .s_type = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .binding_count = bindings.len,
         .p_bindings = bindings.ptr,
     };
     vk_check(vkCreateDescriptorSetLayout(ctx.dev.log_dev, &layout_ci, ctx.vk_alloc, &layout.handle));
-	return layout;
 }
 
 <*

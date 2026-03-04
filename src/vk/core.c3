@@ -1,60 +1,38 @@
 module vk;
 
+import engine;
+import window;
 import std::collections::elastic_array;
 import std::math;
-import app;
-import window;
-import constants;
 
 const MAX_SHADER_CNT = 10u;
 
 struct VulkanContext
 {
-	App*						app_ctx;
-	FrameDataSOA				frame_data;
 	VulkanDevice            	dev;
+	App*						app_ctx;
+	ElasticArray{FrameData, engine::FRAMES_IN_FLIGHT} frame_data;
 	VulkanSwapchain         	swapchain;
 	VulkanRenderer				renderer;
 	ElasticArray{VulkanShader, MAX_SHADER_CNT} shaders;
-	VkInstance              	instance;
 	VkSurfaceKHR            	surface;
 	VkDebugUtilsMessengerEXT	debug_messenger;
 	VkAllocationCallbacks*		vk_alloc;
 	uint						curr_frame;
 	uint						curr_shader;
-}
-
-struct FrameDataSOA
-{
-	ElasticArray{VulkanCmdPool, constants::FRAMES_IN_FLIGHT}  			cmd_pools;
-	ElasticArray{VkCommandBuffer, constants::FRAMES_IN_FLIGHT} 			cmd_buffers;
-	ElasticArray{VulkanCmdBufferState, constants::FRAMES_IN_FLIGHT} 	cmd_buffer_states;
-	ElasticArray{VulkanSemaphore, constants::FRAMES_IN_FLIGHT}			image_avail_semaphores;
-	ElasticArray{VulkanSemaphore, constants::FRAMES_IN_FLIGHT}			resource_transfer_end_semaphores;
-	ElasticArray{VulkanSemaphore, constants::FRAMES_IN_FLIGHT}			render_end_semaphores;
-	ElasticArray{VulkanFence, constants::FRAMES_IN_FLIGHT}    			render_end_fences;
-}
-
-struct FrameDataSOAView
-{
-	VulkanCmdPool[]   		cmd_pools;
-	VkCommandBuffer[] 		cmd_buffers;
-	VulkanCmdBufferState[] 	cmd_buffer_states;
-	VkSemaphore[]     		image_avail_semaphores;
-	VkSemaphore[]     		resource_transfer_end_semaphores;
-	VkSemaphore[]     		render_end_semaphores;
-	VkFence[]         		render_end_fences;
+	VkInstance              	instance;
+	VulkanCmdPool  			    graphics_cmd_pool;
+	VulkanCmdPool  			    transfer_cmd_pool;
 }
 
 struct FrameData
 {
-	VulkanCmdPool        cmd_pool;
-	VkCommandBuffer      cmd_buffer;
-	VulkanCmdBufferState state;
-	VkSemaphore          image_avail_semaphore;
-	VkSemaphore          resource_transfer_end_semaphore;
-	VkSemaphore          render_end_semaphore;
-	VkFence              render_end_fence;
+	VulkanCmdBuffer 	      graphics_cmd_buff;
+	VulkanCmdBuffer 	      transfer_cmd_buff;
+	VulkanSemaphore			  image_avail_sem;
+	VulkanSemaphore			  resource_transfer_end_sem;
+	VulkanSemaphore			  render_end_sem;
+	VulkanFence    			  render_end_fence;
 }
 
 faultdef
@@ -67,55 +45,43 @@ fn void? init_vk(App* app_ctx, AppConfig* app_config, Window* window)
 	vk_check(vk::volk_initialize());
 
 	app_ctx.vk_ctx.app_ctx = app_ctx;
-	VulkanContext* vk_ctx = &app_ctx.vk_ctx;
+	VulkanContext* ctx = &app_ctx.vk_ctx;
 
-	if (!init_instance(vk_ctx, app_config)) {
+	if (!init_instance(ctx, app_config)) {
 		return INSTANCE_INIT_FAILED~;
 	}
 
-	window.create_vk_surface(vk_ctx.instance, &vk_ctx.surface);
+	window.create_vk_surface(ctx.instance, &ctx.surface);
 
-	if (!init_device(vk_ctx)) {
+	if (!init_device(ctx)) {
 		return DEVICE_INIT_FAILED~;
 	}
 
+	init_frame_data(ctx);
+
 	VkExtent2D extent = { app_config.init_width, app_config.init_height };
-	if (!init_swapchain(vk_ctx, extent)) {
+	if (!init_swapchain(ctx, extent)) {
 		return SWAPCHAIN_INIT_FAILED~;
 	}
 
-	vk_ctx.init_frame_data();
-
-	vk_ctx.renderer.init(extent, constants::COLOR_BLACK_RGBA);
-
-	create_main_shader(vk_ctx);
+	ctx.renderer.init(ctx, extent, engine::COLOR_BLACK_RGBA);
+	create_main_shader(ctx);
 }
 
-fn void VulkanContext.init_frame_data(&ctx) @private
+fn VulkanShader* VulkanContext.access_curr_shader(&ctx)
 {
-	FrameDataSOA* frame_data = &ctx.frame_data;
+	return &ctx.shaders[ctx.curr_shader];
+}
 
-	for (uint i = 0; i < constants::FRAMES_IN_FLIGHT; ++i) {
-		VulkanCmdPool* pool = &frame_data.cmd_pools[i];
-		pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
-		VulkanCmdBufferSOAView cmd_buffers_view = {
-			.handles = { frame_data.cmd_buffers[i] },
-			.states = { frame_data.cmd_buffer_states[i] },
-		};
-		pool.allocate_cmd_buffers(&ctx.dev, cmd_buffers_view, true);
-	}
-	foreach (&sem : frame_data.image_avail_semaphores) {
-		sem.init(ctx);
-	}
-	foreach (&sem : frame_data.render_end_semaphores) {
-		sem.init(ctx);
-	}
-	foreach (&sem : frame_data.resource_transfer_end_semaphores) {
-		sem.init(ctx);
-	}
-	foreach (&fence : frame_data.render_end_fences) {
-		fence.init(ctx);
-	}
+fn FrameData* VulkanContext.access_curr_frame_data(&ctx)
+{
+	return &ctx.frame_data[ctx.curr_frame];
+}
+
+fn void VulkanContext.advance_frame(&ctx)
+{
+	ctx.curr_frame++;
+	ctx.curr_frame %= engine::FRAMES_IN_FLIGHT;
 }
 
 fn void create_main_shader(VulkanContext* ctx) @local
@@ -166,12 +132,12 @@ fn void create_main_shader(VulkanContext* ctx) @local
     attrib_descriptions[1].binding = 0;
     attrib_descriptions[1].location = 1;
     attrib_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attrib_descriptions[1].offset = math::SimdVec3.sizeof;
+    attrib_descriptions[1].offset = Vec3.sizeof;
     // Texture sampler
     attrib_descriptions[2].binding = 0;
     attrib_descriptions[2].location = 2;
     attrib_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-    attrib_descriptions[2].offset = math::SimdVec3.sizeof * 2;
+    attrib_descriptions[2].offset = Vec3.sizeof * 2;
 
     VkPushConstantRange[1] push_constant_ranges = {
 		{
@@ -205,31 +171,78 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	ctx.shaders[0] = create_shader(ctx, MAIN_SHADER_NAME, &shader_conf);
 }
 
-fn void VulkanContext.destroy_frame_data(&ctx) @private
+<*
+	Requires VulkanDevice to be initialized
+*>
+fn void init_frame_data(VulkanContext* ctx) @local
 {
-	FrameDataSOA* frame_data = &ctx.frame_data;
+	ctx.frame_data.resize_to_cap();
 
-	for (uint i = 0; i < constants::FRAMES_IN_FLIGHT; ++i) {
-		VulkanCmdPool* pool = &frame_data.cmd_pools[i];
-		VulkanCmdBufferSOAView cmd_buffers_view = {
-			.handles = { frame_data.cmd_buffers[i] },
-			.states = { frame_data.cmd_buffer_states[i] },
-		};
-		pool.free_cmd_buffers(&ctx.dev, cmd_buffers_view);
-		pool.destroy(ctx);
+	if (!ctx.dev.graphics_matches_transfer_queue()) {
+		ctx.graphics_cmd_pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
+		ctx.transfer_cmd_pool.init(ctx, ctx.dev.queue_indices.transfer.fam);
+
+		VkCommandBuffer[engine::FRAMES_IN_FLIGHT] graphics_buffs;
+		VkCommandBuffer[engine::FRAMES_IN_FLIGHT] transfer_buffs;
+
+		ctx.graphics_cmd_pool.allocate_cmd_buffers(&ctx.dev, graphics_buffs[..]);
+		ctx.transfer_cmd_pool.allocate_cmd_buffers(&ctx.dev, transfer_buffs[..]);
+
+		foreach (uint i, &frame : ctx.frame_data) {
+			frame.graphics_cmd_buff.init(graphics_buffs[i]);
+			frame.transfer_cmd_buff.init(transfer_buffs[i]);
+		}
+	} else {
+		ctx.graphics_cmd_pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
+		VkCommandBuffer[engine::FRAMES_IN_FLIGHT * 2] cmd_buffs;
+		ctx.graphics_cmd_pool.allocate_cmd_buffers(&ctx.dev, cmd_buffs[..]);
+
+		uint i = 0;
+		foreach (&frame : ctx.frame_data) {
+			frame.graphics_cmd_buff.init(cmd_buffs[i++]);
+			frame.transfer_cmd_buff.init(cmd_buffs[i++]);
+		}
 	}
 
-	foreach (&sem : frame_data.image_avail_semaphores) {
-		sem.destroy(ctx);
+	foreach (&data : ctx.frame_data) {
+		data.image_avail_sem.init(ctx);
+		data.render_end_sem.init(ctx);
+		data.resource_transfer_end_sem.init(ctx);
+		data.render_end_fence.init(ctx);
 	}
-	foreach (&sem : frame_data.render_end_semaphores) {
-		sem.destroy(ctx);
+}
+
+fn void destroy_frame_data(VulkanContext* ctx) @local
+{
+	
+	if (!ctx.dev.graphics_matches_transfer_queue()) {
+		ctx.graphics_cmd_pool.free_cmd_buffers(&ctx.dev, {
+			ctx.frame_data[0].graphics_cmd_buff.handle,
+			ctx.frame_data[1].graphics_cmd_buff.handle,
+		});
+		ctx.transfer_cmd_pool.free_cmd_buffers(&ctx.dev, {
+			ctx.frame_data[0].transfer_cmd_buff.handle,
+			ctx.frame_data[1].transfer_cmd_buff.handle,
+		});
+		ctx.graphics_cmd_pool.destroy(ctx);
+		ctx.transfer_cmd_pool.destroy(ctx);
+	} else {
+		ctx.graphics_cmd_pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
+		ctx.graphics_cmd_pool.allocate_cmd_buffers(&ctx.dev, {
+			ctx.frame_data[0].graphics_cmd_buff.handle,
+			ctx.frame_data[0].transfer_cmd_buff.handle,
+			ctx.frame_data[1].graphics_cmd_buff.handle,
+			ctx.frame_data[1].transfer_cmd_buff.handle,
+		});
 	}
-	foreach (&sem : frame_data.resource_transfer_end_semaphores) {
-		sem.destroy(ctx);
-	}
-	foreach (&fence : frame_data.render_end_fences) {
-		fence.destroy(ctx);
+
+	foreach (&data : ctx.frame_data) {
+		data.graphics_cmd_buff.state = NOT_ALLOCATED;
+		data.transfer_cmd_buff.state = NOT_ALLOCATED;
+		data.image_avail_sem.destroy(ctx);
+		data.render_end_sem.destroy(ctx);
+		data.resource_transfer_end_sem.destroy(ctx);
+		data.render_end_fence.destroy(ctx);
 	}
 }
 
@@ -238,7 +251,7 @@ fn void VulkanContext.destroy(&ctx)
 	foreach (&shader : ctx.shaders) {
 		shader.destroy(ctx);
 	}
-	ctx.destroy_frame_data();
+	destroy_frame_data(ctx);
 	ctx.swapchain.destroy(ctx);
 	ctx.dev.destroy(ctx);
 	vkDestroyInstance(ctx.instance, ctx.vk_alloc);
