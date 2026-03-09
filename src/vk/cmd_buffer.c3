@@ -70,7 +70,7 @@ fn void VulkanCmdBuffer.submit(
     }
 	else {
 	    if (fence.is_signaled) {
-	        logger::logn(INFO, "Fence can't be in signaled state when submitting a queue, resetting...");
+	        logger::logn(WARN, "Fence can't be in signaled state when submitting a queue, resetting...");
 	        fence.reset(ctx);
 	    }
 	    vk_check(vkQueueSubmit(queue, 1, submit_info, fence.handle));

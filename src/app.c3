@@ -49,14 +49,17 @@ fn void App.run(&app)
 {
 	while (!glfw::windowShouldClose(app.window.handle)) {
 		glfw::pollEvents();
-		vk::begin_frame(&app.vk_ctx);
-		vk::draw_frame(&app.vk_ctx);
-		vk::end_frame(&app.vk_ctx);
+		SwapchainPresentRes acquire_res = vk::begin_frame(&app.vk_ctx);
+		if (acquire_res == SUCCESS) {
+			vk::draw_frame(&app.vk_ctx);
+			vk::end_frame(&app.vk_ctx);
+		}
 	}
 }
 
 fn void App.shutdown(&app)
 {
+	app.vk_ctx.dev.wait_idle();
 	app.main_alloc.destroy();
 	app.temp_alloc.destroy();
 	app.vk_ctx.destroy();

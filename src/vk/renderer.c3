@@ -3,12 +3,11 @@ module vk;
 import engine;
 import logger;
 import std::math;
-import std::collections::elastic_array;
 
 struct VulkanRenderer
 {
-	ElasticArray{VulkanGlobalUBO, engine::FRAMES_IN_FLIGHT}	global_ubos;
-	ElasticArray{VkDescriptorSet, engine::FRAMES_IN_FLIGHT}	global_descriptor_sets;
+	VulkanGlobalUBO[engine::FRAMES_IN_FLIGHT] 	global_ubos;
+	VkDescriptorSet[engine::FRAMES_IN_FLIGHT]	global_descriptor_sets;
 	VulkanElementBuffer{ushort} 	elem_buff;
 	ColorRGBA                       clear_color;
 	VkViewport                      viewport;
@@ -16,6 +15,8 @@ struct VulkanRenderer
 	double 			                delta_time;
 	VulkanDescriptorPool			global_descriptor_pool;
 	VulkanDescriptorSetLayout		global_descriptor_layout;
+	uint							frame_counter @if($feature(SF_FRAME_COUNT));
+	bool							resize_scheduled;
 
 	// TODO:
 	// Camera			camera;
@@ -30,7 +31,7 @@ fn void VulkanRenderer.init(&renderer, VulkanContext* ctx, VkExtent2D init_area,
         .width = (float)init_area.width,
         .height = (float)init_area.height,
         .min_depth = 0.0f,
-        .max_depth = 1.0f,
+        .max_depth = 100.0f,
     };
 	renderer.scissors = {
 		.offset = engine::OFFSET_START,
@@ -42,13 +43,27 @@ fn void VulkanRenderer.init(&renderer, VulkanContext* ctx, VkExtent2D init_area,
 	}
 
 	init_elem_buffer{ushort}(&renderer.elem_buff, ctx, engine::get_cube_vertices()[..], engine::get_cube_indices(ushort)[..])!!;
-	init_global_descriptors(renderer, ctx);
+
+	Mat4 init_view = math::M4_IDENTITY;
+	init_view.translate({0.0f, 0.0f, -2.0f});
+	init_global_descriptors(renderer, ctx, init_view);
+
+$if $feature(SF_FRAME_COUNT):
+	renderer.frame_counter = 0;
+$endif
 }
 
-fn void begin_frame(VulkanContext* ctx)
+fn SwapchainPresentRes begin_frame(VulkanContext* ctx)
 {
-	vkQueueWaitIdle(ctx.dev.present_queue);
-	ctx.swapchain.acquire_next_image_index(ctx, 0, ctx.frame_data[ctx.curr_frame].image_avail_sem.handle);
+	if (ctx.swapchain.recreation_scheduled) {
+		VkExtent2D new_coords @noinit;
+		ctx.app_ctx.window.get_screen_coordinates(&new_coords);
+		logger::logn(INFO, "Recreating swapchain, new screen coordinates: %d %d", new_coords.width, new_coords.height);
+		ctx.swapchain.recreate(ctx, new_coords)!!;
+		ctx.renderer.update_viewport_scissors(new_coords);
+		ctx.renderer.resize_scheduled = true;
+	}
+	return ctx.swapchain.acquire_next_image_index(ctx, 0, ctx.frame_data[ctx.curr_frame].image_avail_sem.handle);
 }
 
 fn void draw_frame(VulkanContext* ctx)
@@ -56,64 +71,63 @@ fn void draw_frame(VulkanContext* ctx)
 	FrameData* frame = ctx.access_curr_frame_data();
 	VulkanElementBuffer{ushort}* elem_buff = &ctx.renderer.elem_buff;
 	VulkanShader* shader = ctx.access_curr_shader();
+	VulkanPipeline* pipeline = shader.get_curr_pipeline();
 	uint curr_frame = ctx.curr_frame;
 
-// --- Step: bind objects + transfer resources (vertices + indices)
+// --- Step: transfer resources
     frame.transfer_cmd_buff.begin_recording();
-	elem_buff.bind(frame.transfer_cmd_buff);
-	shader.bind_curr_pipeline(frame.graphics_cmd_buff);
-	shader.bind_descriptor_sets(
-		frame.graphics_cmd_buff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-		(&ctx.renderer.global_descriptor_sets[curr_frame])[:1]
-	);
-
-    VkBufferCopy vertex_copy_region = {
+	if (ctx.renderer.resize_scheduled) {
+		ctx.renderer.cmd_send_viewport_scissors(frame.transfer_cmd_buff);
+		ctx.renderer.resize_scheduled = false;
+	}
+    VkBufferCopy copy_region = {
         .src_offset = 0,
         .dst_offset = 0,
-        .size = elem_buff.vertices_size_bytes,
+        .size = elem_buff.all_size_bytes,
     };
-
-    VkBufferCopy index_copy_region = {
-        .src_offset = elem_buff.vertices_size_bytes,
-        .dst_offset = elem_buff.vertices_size_bytes,
-        .size = elem_buff.indices_size_bytes(),
-    };
-
-    frame.transfer_cmd_buff.cmd_copy_data_between_buff(elem_buff.staging_buff, elem_buff.main_buff, &vertex_copy_region);
-    frame.transfer_cmd_buff.cmd_copy_data_between_buff(elem_buff.staging_buff, elem_buff.main_buff, &index_copy_region);
+    frame.transfer_cmd_buff.cmd_copy_data_between_buff(elem_buff.staging_buff, elem_buff.main_buff, &copy_region);
     frame.transfer_cmd_buff.end_recording();
-
     VkSubmitInfo transfer_submit_info = {
         .s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .command_buffer_count = 1,
         .p_command_buffers = &frame.transfer_cmd_buff.handle,
 		.signal_semaphore_count = 1,
-		.p_signal_semaphores = &frame.transfer_cmd_buff.handle,
+		.p_signal_semaphores = &frame.resource_transfer_end_sem.handle,
     };
-
     frame.transfer_cmd_buff.submit(ctx, ctx.dev.transfer_queue, &transfer_submit_info, null);
 
+// --- Step: bind resources
+	frame.graphics_cmd_buff.begin_recording();
+	elem_buff.bind(frame.graphics_cmd_buff);
+	pipeline.bind(frame.graphics_cmd_buff);
+	ctx.renderer.bind_viewport_scissors(frame.graphics_cmd_buff);
+	shader.bind_descriptor_sets(
+		frame.graphics_cmd_buff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+		(&ctx.renderer.global_descriptor_sets[curr_frame])[:1]
+	);
+
 // --- Step: draw into the render target
+	begin_rendering(ctx, &frame.graphics_cmd_buff);
+	ctx.renderer.update_view_projection(&ctx.dev, curr_frame, math::M4_IDENTITY, math::M4_IDENTITY);
+	update_model(frame.graphics_cmd_buff, pipeline, &&math::M4_IDENTITY);
 
 // NOTE: TEMP geometry view
 	GeometryView temp_view = elem_buff.get_full_geometry_view();
-	frame.graphics_cmd_buff.begin_recording();
-
-	begin_rendering(ctx, &frame.graphics_cmd_buff);
 // NOTE: draw call
 	frame.graphics_cmd_buff.cmd_draw_geometry(temp_view);
+	
 	end_rendering(ctx, &frame.graphics_cmd_buff);
-
 	frame.graphics_cmd_buff.end_recording();
 
 // --- Step submit graphics buffer
 	const WAIT_SEM_COUNT = 2;
 	VkSemaphore[WAIT_SEM_COUNT] wait_semaphores = { frame.image_avail_sem.handle, frame.resource_transfer_end_sem.handle };
-    VkPipelineStageFlags[WAIT_SEM_COUNT] wait_dest_mask = { VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT };
+// NOTE: TEST
+    // VkPipelineStageFlags[WAIT_SEM_COUNT] wait_dest_mask = { VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkPipelineStageFlags[WAIT_SEM_COUNT] wait_dest_mask = { VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT };
 
     VkSubmitInfo submit_info = {
         .s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-	// NOTE: waiting on different semaphore (TEST)
         .wait_semaphore_count = WAIT_SEM_COUNT,
         .p_wait_semaphores = &wait_semaphores,
         .p_wait_dst_stage_mask = &wait_dest_mask,
@@ -123,15 +137,19 @@ fn void draw_frame(VulkanContext* ctx)
         .p_signal_semaphores = &frame.render_end_sem.handle,
     };
 
-    frame.graphics_cmd_buff.submit(ctx, ctx.dev.present_queue, &submit_info, &frame.render_end_fence);
-	SwapchainPresentRes res = ctx.swapchain.present(ctx, ctx.dev.present_queue, frame.render_end_sem.handle);
-	logger::logn(INFO, "presentation result: %s", res);
+    frame.graphics_cmd_buff.submit(ctx, ctx.dev.graphics_queue, &submit_info, &frame.render_end_fence);
+	ctx.swapchain.present(ctx, ctx.dev.present_queue, frame.render_end_sem.handle);
+
+$if ($feature(SF_FRAME_COUNT)):
+	logger::logn(INFO, "frame count: %d", ctx.renderer.frame_counter++);
+$endif
 }
 
 fn void end_frame(VulkanContext* ctx)
 {
 	FrameData* frame = ctx.access_curr_frame_data();
-	frame.render_end_fence.wait(ctx);
+	frame.render_end_fence.wait(ctx)!!;
+	frame.render_end_fence.reset(ctx);
 	frame.transfer_cmd_buff.reset();
 	frame.graphics_cmd_buff.reset();
 	ctx.advance_frame();
@@ -142,34 +160,39 @@ fn void VulkanRenderer.set_clear_color(&renderer, ColorRGBA clear_color = COLOR_
 	renderer.clear_color = clear_color;
 }
 
-fn void VulkanRenderer.set_viewport_scissors(&renderer, VkExtent2D area, VulkanCmdBuffer* cmd_buffer)
+fn void VulkanRenderer.update_viewport_scissors(&renderer, VkExtent2D area)
 {
     renderer.viewport = {
         .width = (float)area.width,
         .height = (float)area.height,
     };
 	renderer.scissors.extent = area;
+}
+
+fn void VulkanRenderer.cmd_send_viewport_scissors(&renderer, VulkanCmdBuffer cmd_buffer)
+{
     vkCmdSetViewport(cmd_buffer.handle, 0, 1, &renderer.viewport);
     vkCmdSetScissor(cmd_buffer.handle, 0, 1, &renderer.scissors);
 }
 
-fn void VulkanRenderer.bind_viewport_scissors(&renderer, VkCommandBuffer graphics_cmd_buffer)
+fn void VulkanRenderer.bind_viewport_scissors(&renderer, VulkanCmdBuffer graphics_cmd_buffer)
 {
-    vkCmdSetViewport(graphics_cmd_buffer, 0, 1, &renderer.viewport);
-    vkCmdSetScissor(graphics_cmd_buffer, 0, 1, &renderer.scissors);
+    vkCmdSetViewport(graphics_cmd_buffer.handle, 0, 1, &renderer.viewport);
+    vkCmdSetScissor(graphics_cmd_buffer.handle, 0, 1, &renderer.scissors);
 }
 
+<*
+	@require cmd_buffer.state == VulkanCmdBufferState.RECORDING_BEGIN : "Should be in RECORDING_BEGIN state before 'begin_rendering'"
+*>
 fn void begin_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 {
-	if (cmd_buffer.state != VulkanCmdBufferState.RECORDING_BEGIN) {
-		cmd_buffer.begin_recording(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	}
-	
 	VulkanSwapchain* swapchain = &ctx.swapchain;
+	VkImage curr_image = swapchain.access_curr_image();
+	VkImageView curr_view = swapchain.access_curr_view();
 
     cmd_transition_layout_raw(
-        swapchain.images[swapchain.curr_image],
-        cmd_buffer,
+		curr_image,
+        *cmd_buffer,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -181,7 +204,7 @@ fn void begin_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 
     cmd_transition_layout_raw(
         ctx.swapchain.depth_image.handle,
-        cmd_buffer,
+        *cmd_buffer,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -193,7 +216,7 @@ fn void begin_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 
     VkRenderingAttachmentInfo color_attachment_info = {
         .s_type = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .image_view = swapchain.image_views[swapchain.curr_image],
+        .image_view = curr_view,
         .image_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .store_op = VK_ATTACHMENT_STORE_OP_STORE,
@@ -227,8 +250,8 @@ fn void end_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 	VulkanSwapchain* swapchain = &ctx.swapchain;
 
     cmd_transition_layout_raw(
-        swapchain.images[swapchain.curr_image],
-        cmd_buffer.handle,
+        swapchain.access_curr_image(),
+        *cmd_buffer,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -240,7 +263,7 @@ fn void end_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 
     cmd_transition_layout_raw(
         swapchain.depth_image.handle,
-        cmd_buffer.handle,
+        *cmd_buffer,
         VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -275,26 +298,33 @@ fn void VulkanRenderer.update_proj(&renderer, uint curr_frame, Mat4 proj)
 	renderer.global_ubos[curr_frame].update_proj(proj);
 }
 
-fn void init_global_descriptors(VulkanRenderer* renderer, VulkanContext* ctx) @local
+fn void update_model(VulkanCmdBuffer cmd_buffer, VulkanPipeline* pipeline, Mat4* model)
 {
-	renderer.global_descriptor_sets.resize_to_cap();
+    vkCmdPushConstants(cmd_buffer.handle, pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, Mat4.sizeof, model);
+}
+
+fn void init_global_descriptors(VulkanRenderer* renderer, VulkanContext* ctx, Mat4 init_view = math::M4_IDENTITY, Mat4 init_proj = math::M4_IDENTITY) @local
+{
     VkDescriptorPoolSize[*] pool_sizes = {{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptor_count = engine::FRAMES_IN_FLIGHT }};
     renderer.global_descriptor_pool.init(ctx, pool_sizes[..], engine::FRAMES_IN_FLIGHT);
 
     VkDescriptorType[*] types = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
-    VkDescriptorSetLayoutBinding[types.len] bindings;
+    VkDescriptorSetLayoutBinding[types.len] bindings @noinit;
     create_descriptor_bindings(VK_SHADER_STAGE_VERTEX_BIT, types[..], bindings[..]);
     renderer.global_descriptor_layout.init(ctx, bindings[..]);
 
-    ElasticArray{VulkanDescriptorSetLayout, engine::FRAMES_IN_FLIGHT} layouts;
-	layouts.resize_to_cap();
-    layouts.fill(renderer.global_descriptor_layout);
+    VulkanDescriptorSetLayout[engine::FRAMES_IN_FLIGHT] layouts @noinit;
+	foreach (&l : layouts) {
+		*l = renderer.global_descriptor_layout;
+	}
 
     renderer.global_descriptor_pool.allocate_sets(
-		&ctx.dev, layouts.array_view(), renderer.global_descriptor_sets.array_view(),
+		&ctx.dev, layouts[..], renderer.global_descriptor_sets[..],
 	);
 
-    update_global_descriptors(renderer, &ctx.dev, ctx.curr_frame);
+	for (uint i = 0; i < engine::FRAMES_IN_FLIGHT; ++i) {
+		renderer.update_view_projection(&ctx.dev, i, init_view, init_proj);
+	}
 }
 
 fn void update_global_descriptors(VulkanRenderer* renderer, VulkanDevice* dev, uint curr_frame) @local

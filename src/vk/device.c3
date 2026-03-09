@@ -178,6 +178,11 @@ fn uint? VulkanDevice.find_mem_type_index(&dev, uint type_filter, VkMemoryProper
 	return MEM_TYPE_IND_NOT_FOUND~;
 }
 
+fn void VulkanDevice.wait_idle(&dev)
+{
+	vkDeviceWaitIdle(dev.log_dev);
+}
+
 fn bool VulkanDevice.graphics_matches_transfer_queue(&dev)
 {
 	return dev.queue_indices.graphics.fam == dev.queue_indices.transfer.fam;
@@ -421,10 +426,6 @@ fn Maybe{QueueIndex} pick_presentation_queue(
 	QueueIndex? graphics_queue_ind = mb_graphics_queue_combine_index.get();
 
 	foreach (uint i, &family : queue_families) {
-		if (family.queue_count <= selected_fam_queue_cnts[i]) {
-			continue;
-		}
-
         uint supports_presentation @noinit;
         vk_check(vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surface, &supports_presentation));
 

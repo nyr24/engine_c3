@@ -2,6 +2,8 @@ module vk;
 
 import logger;
 
+faultdef FENCE_WAIT_OCCURS;
+
 // VulkanSemaphore
 
 struct VulkanSemaphore
@@ -50,7 +52,7 @@ fn void VulkanFence.init(&fence, VulkanContext* ctx, bool init_singaled = false)
 <*
 	@require fence.is_signaled == false
 *>
-fn bool VulkanFence.wait(&fence, VulkanContext* ctx)
+fn void? VulkanFence.wait(&fence, VulkanContext* ctx)
 {
     VkResult result = VK_TIMEOUT;
 
@@ -63,10 +65,9 @@ fn bool VulkanFence.wait(&fence, VulkanContext* ctx)
     
     if (result == VK_SUCCESS) {
         fence.is_signaled = true;
-        return true;
     } else {
         logger::logn(ERROR, "Fence wait error occurred");
-        return false;
+        return FENCE_WAIT_OCCURS~;
     }
 }
 

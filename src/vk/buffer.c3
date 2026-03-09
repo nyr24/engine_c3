@@ -170,7 +170,7 @@ fn void? init_elem_buffer(
 	elem_buff.all_size_bytes = capacity_bytes;
 }
 
-fn void VulkanElementBuffer.bind(&elem_buff, VulkanCmdBuffer cmd_buffer, VkDeviceSize[] offsets = {})
+fn void VulkanElementBuffer.bind(&elem_buff, VulkanCmdBuffer cmd_buffer, VkDeviceSize[] offsets = {0})
 {
 	vkCmdBindVertexBuffers(
 		cmd_buffer.handle,
@@ -195,7 +195,7 @@ fn uint VulkanElementBuffer.indices_size_bytes(&elem_buff) @inline
 macro uint VulkanElementBuffer.indices_count(&elem_buff)
 {
 	$if IndexType.sizeof > char.sizeof:
-		return elem_buff.indices_size_bytes() * (1 / IndexType.sizeof);
+		return elem_buff.indices_size_bytes() / IndexType.sizeof;
 	$else
 		return elem_buff.indices_size_bytes();
 	$endif
@@ -256,8 +256,8 @@ struct GlobalUniformData
 {
 	Mat4 view;
 	Mat4 proj;
-	// Mat4 reserved_0;
-	// Mat4 reserved_1;
+	Mat4 reserved_0;
+	Mat4 reserved_1;
 }
 
 struct LocalUniformData
@@ -275,7 +275,12 @@ struct VulkanGlobalUBO
 	VulkanBuffer       buffer;
 }
 
-fn void? VulkanGlobalUBO.init(&ubo, VulkanContext* ctx)
+fn void? VulkanGlobalUBO.init(
+	&ubo,
+	VulkanContext* ctx,
+	Mat4 view = math::M4_IDENTITY,
+	Mat4 proj = math::M4_IDENTITY
+)
 {
 	ubo.buffer.init(
 		ctx,
@@ -291,7 +296,7 @@ fn void? VulkanGlobalUBO.init(&ubo, VulkanContext* ctx)
 		ctx.dev.log_dev,
 		ubo.buffer.mem,
 		0,
-		VulkanGlobalUBO.sizeof,
+		GlobalUniformData.sizeof,
 		0,
 		&ubo.mapped_mem
 	)
@@ -299,6 +304,8 @@ fn void? VulkanGlobalUBO.init(&ubo, VulkanContext* ctx)
 	{
 		return MEMORY_MAP_FAILED~;
 	}
+
+	ubo.update(view, proj);
 }
 
 fn void VulkanGlobalUBO.update(&ubo, Mat4 view, Mat4 proj)

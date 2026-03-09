@@ -117,7 +117,7 @@ fn VkImageView create_view_from_raw(
 
 fn void VulkanImage.cmd_transition_layout(
 	&image,
-    VulkanCmdBuffer* cmd_buffer,
+    VulkanCmdBuffer cmd_buffer,
     VkImageLayout src_layout,
     VkImageLayout dest_layout,
     VkPipelineStageFlagBits2 src_stage_mask,
@@ -141,7 +141,7 @@ fn void VulkanImage.cmd_transition_layout(
 
 fn void cmd_transition_layout_raw(
     VkImage raw_image,
-    VulkanCmdBuffer* cmd_buffer,
+    VulkanCmdBuffer cmd_buffer,
     VkImageLayout src_layout,
     VkImageLayout dest_layout,
     VkPipelineStageFlagBits2 src_stage_mask,

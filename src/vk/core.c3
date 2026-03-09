@@ -2,6 +2,7 @@ module vk;
 
 import engine;
 import window;
+import logger;
 import std::collections::elastic_array;
 import std::math;
 
@@ -9,20 +10,20 @@ const MAX_SHADER_CNT = 10u;
 
 struct VulkanContext
 {
+	FrameData[engine::FRAMES_IN_FLIGHT] frame_data;
 	VulkanDevice            	dev;
-	App*						app_ctx;
-	ElasticArray{FrameData, engine::FRAMES_IN_FLIGHT} frame_data;
 	VulkanSwapchain         	swapchain;
 	VulkanRenderer				renderer;
 	ElasticArray{VulkanShader, MAX_SHADER_CNT} shaders;
-	VkSurfaceKHR            	surface;
 	VkDebugUtilsMessengerEXT	debug_messenger;
 	VkAllocationCallbacks*		vk_alloc;
 	uint						curr_frame;
 	uint						curr_shader;
-	VkInstance              	instance;
 	VulkanCmdPool  			    graphics_cmd_pool;
 	VulkanCmdPool  			    transfer_cmd_pool;
+	VkInstance              	instance;
+	VkSurfaceKHR            	surface;
+	App*						app_ctx;
 }
 
 struct FrameData
@@ -32,6 +33,8 @@ struct FrameData
 	VulkanSemaphore			  image_avail_sem;
 	VulkanSemaphore			  resource_transfer_end_sem;
 	VulkanSemaphore			  render_end_sem;
+// NOTE: PERF: 1 bool creates 7 bit padding in every instance
+// SOLUTION: store cmd_buff states (2 chars) + fence.is_signaled here, at the end
 	VulkanFence    			  render_end_fence;
 }
 
@@ -60,9 +63,7 @@ fn void? init_vk(App* app_ctx, AppConfig* app_config, Window* window)
 	init_frame_data(ctx);
 
 	VkExtent2D extent = { app_config.init_width, app_config.init_height };
-	if (!init_swapchain(ctx, extent)) {
-		return SWAPCHAIN_INIT_FAILED~;
-	}
+	init_swapchain(ctx, extent)!;
 
 	ctx.renderer.init(ctx, extent, engine::COLOR_BLACK_RGBA);
 	create_main_shader(ctx);
@@ -80,8 +81,7 @@ fn FrameData* VulkanContext.access_curr_frame_data(&ctx)
 
 fn void VulkanContext.advance_frame(&ctx)
 {
-	ctx.curr_frame++;
-	ctx.curr_frame %= engine::FRAMES_IN_FLIGHT;
+	ctx.curr_frame = ctx.curr_frame >= (engine::FRAMES_IN_FLIGHT - 1) ? 0 : ctx.curr_frame + 1;
 }
 
 fn void create_main_shader(VulkanContext* ctx) @local
@@ -90,35 +90,34 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	const MAIN_SHADER_MAX_ENTITY_CNT = 1024u;
 	const MAIN_SHADER_NAME = "shader_main.spv";
 
-	ElasticArray{VkDescriptorSetLayoutBinding, 5}[2] descriptor_bindings;
+	VkDescriptorSetLayoutBinding[1] descriptor_bindings;
+	VkDescriptorType[1] global_descriptor_types = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
+	// VkDescriptorType[*] local_descriptor_types = {
+		// VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+	// };
 
-	VkDescriptorType[*] global_descriptor_types = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
-	VkDescriptorType[*] local_descriptor_types = {
-		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-	};
-
-	descriptor_bindings[0].resize(global_descriptor_types.len);
-	descriptor_bindings[1].resize(local_descriptor_types.len);
+	// descriptor_bindings[0].resize(global_descriptor_types.len);
+	// descriptor_bindings[1].resize(local_descriptor_types.len);
 
 	// global ubo
 	create_descriptor_bindings(
 		VK_SHADER_STAGE_VERTEX_BIT,
 		global_descriptor_types[..],
-		descriptor_bindings[0].array_view(),
+		descriptor_bindings[..],
 	);
 
 	// local ubo
-	create_descriptor_bindings(
-		VK_SHADER_STAGE_FRAGMENT_BIT,
-		local_descriptor_types[..],
-		descriptor_bindings[1].array_view(),
-	);
+	// create_descriptor_bindings(
+	// 	VK_SHADER_STAGE_FRAGMENT_BIT,
+	// 	local_descriptor_types[..],
+	// 	descriptor_bindings[1].array_view(),
+	// );
 
-	VkDescriptorSetLayoutBinding[][2] bindings = { descriptor_bindings[0].array_view(), descriptor_bindings[1].array_view() };
+	VkDescriptorSetLayoutBinding[][1] shader_bindings = { descriptor_bindings[..] };
 
 	// attrib descriptions
     VkVertexInputAttributeDescription[MAIN_SHADER_ATTRIB_CNT] attrib_descriptions;
@@ -159,7 +158,7 @@ fn void create_main_shader(VulkanContext* ctx) @local
 
 	VulkanShaderConfig shader_conf = {
 		.stage_bits = VulkanShaderStageKind.VERTEX | VulkanShaderStageKind.FRAGMENT,
-		.descriptor_bindings = bindings[..],
+		.descriptor_bindings = shader_bindings[..],
 		.attrib_descriptions = attrib_descriptions[..],
 		.pipeline_configs = pipeline_configs[..],
 		.push_constant_ranges = push_constant_ranges[..],
@@ -176,9 +175,9 @@ fn void create_main_shader(VulkanContext* ctx) @local
 *>
 fn void init_frame_data(VulkanContext* ctx) @local
 {
-	ctx.frame_data.resize_to_cap();
-
 	if (!ctx.dev.graphics_matches_transfer_queue()) {
+		logger::logn(INFO, "Graphics and Transfer queues are different");
+
 		ctx.graphics_cmd_pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
 		ctx.transfer_cmd_pool.init(ctx, ctx.dev.queue_indices.transfer.fam);
 
@@ -193,6 +192,8 @@ fn void init_frame_data(VulkanContext* ctx) @local
 			frame.transfer_cmd_buff.init(transfer_buffs[i]);
 		}
 	} else {
+		logger::logn(INFO, "Graphics and Transfer queues are the same");
+
 		ctx.graphics_cmd_pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
 		VkCommandBuffer[engine::FRAMES_IN_FLIGHT * 2] cmd_buffs;
 		ctx.graphics_cmd_pool.allocate_cmd_buffers(&ctx.dev, cmd_buffs[..]);
@@ -206,34 +207,36 @@ fn void init_frame_data(VulkanContext* ctx) @local
 
 	foreach (&data : ctx.frame_data) {
 		data.image_avail_sem.init(ctx);
-		data.render_end_sem.init(ctx);
 		data.resource_transfer_end_sem.init(ctx);
+		data.render_end_sem.init(ctx);
 		data.render_end_fence.init(ctx);
 	}
 }
 
 fn void destroy_frame_data(VulkanContext* ctx) @local
 {
-	
 	if (!ctx.dev.graphics_matches_transfer_queue()) {
-		ctx.graphics_cmd_pool.free_cmd_buffers(&ctx.dev, {
-			ctx.frame_data[0].graphics_cmd_buff.handle,
-			ctx.frame_data[1].graphics_cmd_buff.handle,
-		});
-		ctx.transfer_cmd_pool.free_cmd_buffers(&ctx.dev, {
-			ctx.frame_data[0].transfer_cmd_buff.handle,
-			ctx.frame_data[1].transfer_cmd_buff.handle,
-		});
+		VkCommandBuffer[engine::FRAMES_IN_FLIGHT] graphics_buffs;
+		VkCommandBuffer[engine::FRAMES_IN_FLIGHT] transfer_buffs;
+
+		foreach (uint i, &frame : ctx.frame_data) {
+			graphics_buffs[i] = frame.graphics_cmd_buff.handle;
+			transfer_buffs[i] = frame.transfer_cmd_buff.handle;
+		}
+
+		ctx.graphics_cmd_pool.free_cmd_buffers(&ctx.dev, graphics_buffs[..]);
 		ctx.graphics_cmd_pool.destroy(ctx);
+		ctx.transfer_cmd_pool.free_cmd_buffers(&ctx.dev, transfer_buffs[..]);
 		ctx.transfer_cmd_pool.destroy(ctx);
 	} else {
-		ctx.graphics_cmd_pool.init(ctx, ctx.dev.queue_indices.graphics.fam);
-		ctx.graphics_cmd_pool.allocate_cmd_buffers(&ctx.dev, {
-			ctx.frame_data[0].graphics_cmd_buff.handle,
-			ctx.frame_data[0].transfer_cmd_buff.handle,
-			ctx.frame_data[1].graphics_cmd_buff.handle,
-			ctx.frame_data[1].transfer_cmd_buff.handle,
-		});
+		VkCommandBuffer[engine::FRAMES_IN_FLIGHT * 2] cmd_buffs;
+		uint i;
+		foreach (&frame : ctx.frame_data) {
+			cmd_buffs[i++] = frame.graphics_cmd_buff.handle;
+			cmd_buffs[i++] = frame.transfer_cmd_buff.handle;
+		}
+		ctx.graphics_cmd_pool.free_cmd_buffers(&ctx.dev, cmd_buffs[..]);
+		ctx.graphics_cmd_pool.destroy(ctx);
 	}
 
 	foreach (&data : ctx.frame_data) {

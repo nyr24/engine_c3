@@ -18,8 +18,8 @@ struct GeometryView {
 
 fn void GeometryView.init(&view, uint indices_offset, uint indices_count, uint vertices_offset)
 {
-	view.indices_offset = indices_offset;
-	view.indices_count = indices_count;
+	view.indices_offset  = indices_offset;
+	view.indices_count   = indices_count;
 	view.vertices_offset = vertices_offset;
 }
 

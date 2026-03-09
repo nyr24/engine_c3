@@ -98,6 +98,10 @@ for arg in "$@"; do
     echo "Compiling shaders"
     COMPILE_SHADERS=1
     ;;
+  --counter)
+    echo "Frame Counter - ON"
+    C3_OPTS+="-D SF_FRAME_COUNT "
+    ;;
   *)
     echo "Unknown argument: $arg"
     ;;
@@ -132,7 +136,7 @@ if [ $IS_RELEASE -eq 0 ]; then
 # Release
 else
   echo "Building in RELEASE mode"
-  C3_OPTS+="-O5 -optlevel=max -g0 --output-dir $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR/glfw/src -L $RELEASE_BUILD_DIR/volk -D SF_RELEASE "
+  C3_OPTS+="-O5 -g0 --safe=no --output-dir $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR/glfw/src -L $RELEASE_BUILD_DIR/volk -D SF_RELEASE "
   if [ $IS_VERBOSE -eq 1 ]; then
     echo "c3 options are: $C3_OPTS"
   fi

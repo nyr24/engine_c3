@@ -4,7 +4,10 @@ import std::collections::elastic_array;
 import std::collections::maybe;
 import std::math;
 import logger;
+
 const MAX_SWAPCHAIN_IMG_CNT = 5u;
+
+faultdef FAILED_TO_ACQUIRE_NEXT_IMAGE_INDEX;
 
 struct VulkanSwapchain
 {
@@ -15,41 +18,97 @@ struct VulkanSwapchain
 	VkPresentModeKHR			present_mode;
 	VkSurfaceFormatKHR			surface_fmt;
 	VkSharingMode				sharing_mode;
-	uint 						curr_image;
+	uint 						curr_image_index;
+	bool 						recreation_scheduled;
 }
 
 enum SwapchainPresentRes
 {
-	FAIL,
-	NEEDS_RECREATION,
 	SUCCESS,
+	NEEDS_RECREATION,
 }
 
-fn bool init_swapchain(VulkanContext* ctx, VkExtent2D extent)
+faultdef
+	SWAPCHAIN_FAILED_TO_FIND_FORMAT,
+	SWAPCHAIN_FAILED_TO_CREATE_DEPTH_IMAGE;
+
+fn void? init_swapchain(VulkanContext* ctx, VkExtent2D extent)
 {
-	if (!ctx.swapchain.acquire_format_and_present_mode(&ctx.dev.swapchain_supp_info)) {
+	if (catch excuse = ctx.swapchain.acquire_format_and_present_mode(&ctx.dev.swapchain_supp_info)) {
 		logger::logn(FATAL, "Failed to acquire appropriate format for swapchain");
-		return false;
+		return excuse~;
 	}
-	if (!ctx.swapchain.create_inner(ctx, extent)) {
+	if (catch excuse = ctx.swapchain.create_inner(ctx, extent)) {
 		logger::logn(FATAL, "Failed create swapchain");
-		return false;
+		return excuse~;
 	}
-
-	return true;
 }
 
-fn bool VulkanSwapchain.recreate(&swapchain, VulkanContext* ctx, VkExtent2D extent)
+fn SwapchainPresentRes VulkanSwapchain.acquire_next_image_index(
+	&swapchain,
+    VulkanContext* ctx,
+    ulong timeout_ns,
+    VkSemaphore image_available_semaphore,
+)
+{
+	uint image_index @noinit;
+	VkResult result = VK_NOT_READY;
+
+	do {
+	    result = vkAcquireNextImageKHR(ctx.dev.log_dev, swapchain.handle, timeout_ns, image_available_semaphore, null, &image_index);
+	} while (result == VK_NOT_READY);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        logger::logn(WARN, "Swapchain is outdated, scheduling recreation...");
+		swapchain.recreation_scheduled = true;
+		return NEEDS_RECREATION;
+    }
+    else if (result != VK_SUCCESS) {
+        logger::logn(FATAL, "Failed to acquire swapchain image, reason: %s", result);
+		abort();
+    }
+	swapchain.curr_image_index = image_index;
+	return SUCCESS;
+}
+
+fn SwapchainPresentRes VulkanSwapchain.present(
+	&swapchain,
+    VulkanContext* ctx,
+    VkQueue present_queue,
+    VkSemaphore render_complete_semaphore,
+)
+{
+    VkPresentInfoKHR present_info = {
+        .s_type = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .wait_semaphore_count = 1u,
+        .p_wait_semaphores = &render_complete_semaphore,
+        .swapchain_count = 1u,
+        .p_swapchains = &swapchain.handle,
+        .p_image_indices = &swapchain.curr_image_index,
+        .p_results = null,
+    };
+
+    VkResult result = vkQueuePresentKHR(present_queue, &present_info);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        logger::logn(WARN, "Swapchain is outdated, recreating...");
+		swapchain.recreation_scheduled = true;
+		return NEEDS_RECREATION;
+    } else if (result != VK_SUCCESS) {
+        logger::logn(FATAL, "Failed to present swapchain image, reason: %d", result);
+		abort();
+    }
+	return SUCCESS;
+}
+
+fn void? VulkanSwapchain.recreate(&swapchain, VulkanContext* ctx, VkExtent2D extent)
 {
 	vkDeviceWaitIdle(ctx.dev.log_dev);
 	swapchain.destroy(ctx);
-	if (!swapchain.create_inner(ctx, extent)) {
-		return false;
-	}
-	return true;
+	swapchain.create_inner(ctx, extent)!;
+	swapchain.recreation_scheduled = false;
 }
 
-fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D extent)
+fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D extent)
 {
 	VulkanDevice* dev = &ctx.dev;
 	SwapchainSupportInfo* supp_info = &dev.swapchain_supp_info;
@@ -114,7 +173,7 @@ fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D 
     if (!dev.detect_depth_format()) {
         dev.depth_fmt = VK_FORMAT_UNDEFINED;
         logger::logn(FATAL, "Failed to find a supported format");
-		return false;
+		return SWAPCHAIN_FAILED_TO_FIND_FORMAT~;
     }
 
 	if (!create_image(
@@ -126,64 +185,25 @@ fn bool VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D 
 	    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 	)) {
 		logger::logn(FATAL, "Failed to create a depth image");
-		return false;
+		return SWAPCHAIN_FAILED_TO_CREATE_DEPTH_IMAGE~;
 	}
 
-	swapchain.curr_image = 0;
-
+	swapchain.curr_image_index = 0;
 	logger::logn(INFO, "Swapchain created successfully!");
-	return true;
+	logger::logn(INFO, "Image sharing mode: %s", swapchain.sharing_mode == VK_SHARING_MODE_CONCURRENT ? "Concurrent" : "Exclusive");
 }
 
-fn Maybe{uint} VulkanSwapchain.acquire_next_image_index(
-	&swapchain,
-    VulkanContext* ctx,
-    ulong timeout_ns,
-    VkSemaphore image_available_semaphore,
-) {
-	uint image_index @noinit;
-    VkResult result = vkAcquireNextImageKHR(ctx.dev.log_dev, swapchain.handle, timeout_ns, image_available_semaphore, null, &image_index);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        swapchain.recreate(ctx, ctx.renderer.scissors.extent);
-        return maybe::EMPTY;
-    }
-    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        logger::logn(FATAL, "Failed to acquire swapchain image!");
-        return maybe::EMPTY;
-    }
-	swapchain.curr_image = image_index;
-
-    return maybe::value(image_index);
+fn VkImage VulkanSwapchain.access_curr_image(&swapchain) @inline
+{
+	return swapchain.images[swapchain.curr_image_index];
 }
 
-fn SwapchainPresentRes VulkanSwapchain.present(
-	&swapchain,
-    VulkanContext* ctx,
-    VkQueue present_queue,
-    VkSemaphore render_complete_semaphore,
-) {
-    VkPresentInfoKHR present_info = {
-        .s_type = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .wait_semaphore_count = 1u,
-        .p_wait_semaphores = &render_complete_semaphore,
-        .swapchain_count = 1u,
-        .p_swapchains = &swapchain.handle,
-        .p_image_indices = &swapchain.curr_image,
-        .p_results = null,
-    };
-
-    VkResult result = vkQueuePresentKHR(present_queue, &present_info);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        swapchain.recreate(ctx, ctx.renderer.scissors.extent);
-		return SwapchainPresentRes.NEEDS_RECREATION;
-    } else if (result != VK_SUCCESS) {
-        logger::logn(FATAL, "Failed to present swapchain image");
-		return SwapchainPresentRes.FAIL;
-    }
-	return SwapchainPresentRes.SUCCESS;
+fn VkImageView VulkanSwapchain.access_curr_view(&swapchain) @inline
+{
+	return swapchain.image_views[swapchain.curr_image_index];
 }
 
-fn bool VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSupportInfo* supp_info)
+fn void? VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSupportInfo* supp_info)
 {
 	bool found = false;
 	foreach (&fmt : supp_info.formats) {
@@ -195,7 +215,7 @@ fn bool VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSup
 		}
 	}
 	if (!found) {
-		return false;
+		return SWAPCHAIN_FAILED_TO_FIND_FORMAT~;
 	}
 
 	VkPresentModeKHR selected_mode = VK_PRESENT_MODE_FIFO_KHR;
@@ -205,7 +225,6 @@ fn bool VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSup
 		}
 	}
 	swapchain.present_mode = selected_mode;
-	return true;
 }
 
 fn void VulkanSwapchain.destroy(&swapchain, VulkanContext* ctx)

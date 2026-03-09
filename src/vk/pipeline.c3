@@ -164,7 +164,6 @@ fn void VulkanShader.create_pipeline(
         .topology = config.primitive_topology,
     };
 
-	
     VkPipelineViewportStateCreateInfo viewport_ci = {
         .s_type = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewport_count = 1,
@@ -351,22 +350,22 @@ fn VulkanShaderModule? create_shader_module(
 fn void VulkanShaderModule.init_shader_stages(&mod, VulkanShaderStageKindBits stage_bits)
 {
 	if (stage_bits & VulkanShaderStageKind.VERTEX) {
-		mod.stages.push({ (CChar*)engine::VERTEX_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.VERTEX });
+		mod.stages.push({ (CChar*)engine::VERTEX_SHADER_ENTRY_NAME, VulkanShaderStageKind.VERTEX });
 	}
 	if (stage_bits & VulkanShaderStageKind.FRAGMENT) {
-		mod.stages.push({ (CChar*)engine::FRAGMENT_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.FRAGMENT });
+		mod.stages.push({ (CChar*)engine::FRAGMENT_SHADER_ENTRY_NAME, VulkanShaderStageKind.FRAGMENT });
 	}
 	if (stage_bits & VulkanShaderStageKind.COMPUTE) {
-		mod.stages.push({ (CChar*)engine::COMPUTE_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.COMPUTE });
+		mod.stages.push({ (CChar*)engine::COMPUTE_SHADER_ENTRY_NAME, VulkanShaderStageKind.COMPUTE });
 	}
 	if (stage_bits & VulkanShaderStageKind.GEOMETRY) {
-		mod.stages.push({ (CChar*)engine::GEOMETRY_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.GEOMETRY });
+		mod.stages.push({ (CChar*)engine::GEOMETRY_SHADER_ENTRY_NAME, VulkanShaderStageKind.GEOMETRY });
 	}
 	if (stage_bits & VulkanShaderStageKind.TESSELATION_CONTROL) {
-		mod.stages.push({ (CChar*)engine::TESSELATION_CONTROL_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.TESSELATION_CONTROL });
+		mod.stages.push({ (CChar*)engine::TESSELATION_CONTROL_SHADER_ENTRY_NAME, VulkanShaderStageKind.TESSELATION_CONTROL });
 	}
 	if (stage_bits & VulkanShaderStageKind.TESSELATION_EVAL) {
-		mod.stages.push({ (CChar*)engine::TESSELATION_EVAL_SHADER_ENTRY_NAME.ptr, VulkanShaderStageKind.TESSELATION_EVAL });
+		mod.stages.push({ (CChar*)engine::TESSELATION_EVAL_SHADER_ENTRY_NAME, VulkanShaderStageKind.TESSELATION_EVAL });
 	}
 }
 
@@ -377,7 +376,7 @@ fn void VulkanShaderModule.get_shader_stage_infos(&mod, VkPipelineShaderStageCre
 {
 	foreach (uint i, stage : mod.stages) {
 		VkPipelineShaderStageCreateInfo stage_ci;
-		stage_ci.s_type = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
+		stage_ci.s_type = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stage_ci.stage = map_shader_stage_to_vk_stage(stage.kind);
 		stage_ci.p_name = stage.entry_name;
 		stage_ci.mod = mod.handle;

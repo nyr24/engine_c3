@@ -11,7 +11,7 @@ struct Window {
 
 faultdef WINDOW_CREATION_FAILED, VULKAN_NOT_SUPPORTED;
 
-fn Window? create(CChar* name, uint width, uint height) {
+fn Window? create(ZString name, uint width, uint height) {
 	if (!glfw::init()) {
 		return WINDOW_CREATION_FAILED~;
 	}
@@ -22,7 +22,7 @@ fn Window? create(CChar* name, uint width, uint height) {
 
     glfw::windowHint(glfw::CLIENT_API, glfw::NO_API);
 
-    glfw::GLFWwindow* handle = glfw::createWindow((CInt)width, (CInt)height, name, null, null);
+    glfw::GLFWwindow* handle = glfw::createWindow((CInt)width, (CInt)height, (CChar*)name, null, null);
     if (!handle) {
         return WINDOW_CREATION_FAILED~;
     }
@@ -42,14 +42,22 @@ fn Window? create(CChar* name, uint width, uint height) {
     return window;
 }
 
-fn void Window.create_vk_surface(&self, VkInstance instance, VkSurfaceKHR* surface) {
-	glfw::createWindowSurface(instance, self.handle, null, surface);
+fn void Window.create_vk_surface(&window, VkInstance instance, VkSurfaceKHR* surface) {
+	glfw::createWindowSurface(instance, window.handle, null, surface);
 }
 
-fn void Window.destroy(&self) {
-	if (self.handle) {
-		glfw::destroyWindow(self.handle);
-		self.handle = null;
+<*
+	@param [out] out_coords : "Retrieved window coordinates"
+*>
+fn void Window.get_screen_coordinates(&window, VkExtent2D* out_coords)
+{
+	glfw::getFramebufferSize(window, (CInt*)&out_coords.width, (CInt*)&out_coords.height);
+}
+
+fn void Window.destroy(&window) {
+	if (window.handle) {
+		glfw::destroyWindow(window.handle);
+		window.handle = null;
 		glfw::terminate();
 	}
 }

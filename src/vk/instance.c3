@@ -19,7 +19,7 @@ fn bool init_instance(VulkanContext* context, AppConfig* config) @private
 
     VkApplicationInfo vk_app_info = {
         .s_type = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .api_version = VK_API_VERSION_1_4,
+        .api_version = VK_API_VERSION_1_3,
     };
 
     VkInstanceCreateInfo instance_ci = {
@@ -31,7 +31,7 @@ $if ($feature(SF_DEBUG)):
     ElasticArray{ZString, MAX_REQ_LAYERS_CNT} req_layers;
 	req_layers.push("VK_LAYER_KHRONOS_validation");
 
-	if (!add_validation_layers(&req_layers))
+	if (!add_layers(&req_layers))
 	{
 		return false;
 	}
@@ -65,7 +65,7 @@ $endif
     return true;
 }
 
-fn bool add_validation_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_layers) @private @if ($feature(SF_DEBUG))
+fn bool add_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_layers) @if($feature(SF_DEBUG)) @private
 {
     ElasticArray{VkLayerProperties, MAX_AVAIL_LAYERS_CNT} avail_layers;
 	uint avail_layer_cnt @noinit;
@@ -78,6 +78,7 @@ fn bool add_validation_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_lay
 	foreach OUTER: (req_layer : req_layers.array_view()) {
 		foreach (&avail_layer : avail_layers.array_view()) {
 			if ((ZString)&avail_layer.layer_name, req_layer) {
+				logger::logn(INFO, "Required layer was found: %s", req_layer);
 				continue OUTER;
 			}
 		}
@@ -88,7 +89,7 @@ fn bool add_validation_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_lay
 	return true;
 }
 
-fn bool check_req_extensions(ElasticArray{ZString, MAX_REQ_EXT_CNT}* req_extensions) @private @if($feature(SF_DEBUG))
+fn bool check_req_extensions(ElasticArray{ZString, MAX_REQ_EXT_CNT}* req_extensions) @if($feature(SF_DEBUG)) @private
 {
     ElasticArray{VkExtensionProperties, MAX_AVAIL_LAYERS_CNT} avail_extensions;
 
@@ -117,7 +118,7 @@ fn void create_debugger(VulkanContext* context) @if($feature(SF_DEBUG)) @private
     uint log_severity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-                        // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
 
     VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {
         .s_type = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
