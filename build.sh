@@ -15,7 +15,7 @@ VSYNC=0;
 CMAKE_OPTS=""
 CMAKE_BUILD_OPTS=""
 # TODO: vulkan driver should be configurable
-LIBRARIES="-l glfw3 -l vulkan_radeon -l volk "
+LIBRARIES="-l m -l glfw3 -l vulkan_radeon -l volk "
 PLATFORM_WAYLAND="PLATFORM_WAYLAND"
 PLATFORM_X11="PLATFORM_X11"
 PLATFORM_WIN32="PLATFORM_WIN32"
@@ -34,15 +34,13 @@ case "$OSTYPE" in
     linux*)
       echo "Detected OS: Linux"
       if [ "$XDG_SESSION_TYPE" == "wayland" ]; then
-          echo "session: Wayland"
-          C3_OPTS+="-D $PLATFORM_WAYLAND "
-          LIBRARIES+="-l wayland-client "
-        elif [ "$XDG_SESSION_TYPE" == "x11" ]; then
-          echo "session: X11."
-          C3_OPTS+="-D $PLATFORM_X11 "
-          LIBRARIES+="-l xcb -l xcb-xkb -l X11 -l X11-xcb "
-      else
-          echo "Current session is Windows."
+        echo "session: Wayland"
+        C3_OPTS+="-D $PLATFORM_WAYLAND "
+        LIBRARIES+="-l wayland-client "
+      elif [ "$XDG_SESSION_TYPE" == "x11" ]; then
+        echo "session: X11."
+        C3_OPTS+="-D $PLATFORM_X11 "
+        LIBRARIES+="-l xcb -l xcb-xkb -l X11 -l X11-xcb "
       fi
     ;;
     darwin*)
@@ -111,7 +109,7 @@ done
 # Debug
 if [ $IS_RELEASE -eq 0 ]; then
   echo "Building in DEBUG mode"
-  C3_OPTS+="-O0 -g --output-dir $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR/glfw/src -L $DEBUG_BUILD_DIR/volk -D SF_DEBUG "
+  C3_OPTS+="-O0 -g --output-dir $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR/glfw/src -L $DEBUG_BUILD_DIR/volk -D SF_DEBUG"
   if [ $IS_VERBOSE -eq 1 ]; then
     echo "c3 options are: $C3_OPTS"
   fi
