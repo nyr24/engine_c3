@@ -1,18 +1,18 @@
 {
   "langrev": "0.7.10",
-  "warnings": [ "no-unused" ],
-  "dependency-search-paths": [ "lib" ],
-  "dependencies": [ ],
-  "authors": [ "nyr24" ],
+  "warnings":  [ "no-unused" ],
+  "dependency-search-paths":  [ "lib" ],
+  "dependencies":  [  ],
+  "authors":  [ "nyr24" ],
   "version": "0.1.0",
-  "sources": [ "src/**" ],
-  "test-sources": [ "test/**" ],
+  "sources":  [ "src/**" ],
+  "test-sources":  [ "test/**" ],
   "build-dir": "build",
   "output": "build/debug",
   "targets": {
     "game_engine": {
-      "type": "executable",
-    },
+      "type": "executable"
+    }
   },
   "cpu": "generic",
   "opt": "O0"

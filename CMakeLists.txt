@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.25)
 project(game_engine VERSION 0.1.0 LANGUAGES CXX)
 
+option(FORCE_X11 "Force X11 instead of wayland" OFF)
+option(BUILD_SHADERS "Enable shader compilation" ON)
+
 set(ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -10,6 +13,11 @@ elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # glfw
+if (FORCE_X11)
+  message(STATUS "forcing glfw to use X11 instead of wayland...")
+  set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+endif()
 set(GLFW_SRC_DIR ${ROOT_DIR}/lib/glfw)
 set(GLFW_BUILD_DIR ${BUILD_DIR}/glfw)
 add_subdirectory(${GLFW_SRC_DIR} ${GLFW_BUILD_DIR})
@@ -79,8 +87,6 @@ function (compile_shaders)
 
   add_custom_target(${SHADER_TARGET} ALL DEPENDS ${SHADER_DIR_TARGET} ${SPIRV_FILES})
 endfunction()
-
-option(BUILD_SHADERS "Enable shader compilation" ON)
 
 if(BUILD_SHADERS)
     compile_shaders()

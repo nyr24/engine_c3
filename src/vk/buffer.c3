@@ -45,7 +45,7 @@ fn void VulkanBuffer.init(
 		.sharing_mode = sharing_mode,
 	};
 
-	vk_check(vkCreateBuffer(ctx.dev.log_dev, &buff_ci, null, &buff.handle));
+	vk_check(vkCreateBuffer(ctx.dev.log_dev, &buff_ci, ctx.vk_alloc, &buff.handle));
 
 	VkMemoryRequirements mem_reqs @noinit;
 	vkGetBufferMemoryRequirements(ctx.dev.log_dev, buff.handle, &mem_reqs);
@@ -61,9 +61,7 @@ fn void VulkanBuffer.init(
 		.memory_type_index = memory_index,
 	};
 
-	vk_check(
-		vkAllocateMemory(ctx.dev.log_dev, &alloc_info, ctx.vk_alloc, &buff.mem)
-	);
+	vk_check(vkAllocateMemory(ctx.dev.log_dev, &alloc_info, ctx.vk_alloc, &buff.mem));
 	vk_check(vkBindBufferMemory(ctx.dev.log_dev, buff.handle, buff.mem, 0));
 	buff.size = size;
 }
@@ -252,13 +250,13 @@ macro typeid convert_vk_index_to_type(VkIndexType vk_index) @local
 // ------ Global UBO ------
 
 // Needs to be at least 256 bytes for Nvidia cards
-struct GlobalUniformData
-{
-	Mat4 view;
-	Mat4 proj;
-	Mat4 reserved_0;
-	Mat4 reserved_1;
-}
+// struct GlobalUniformData
+// {
+// 	Mat4 view;
+// 	Mat4 proj;
+// 	Mat4 reserved_0;
+// 	Mat4 reserved_1;
+// }
 
 struct LocalUniformData
 {
@@ -268,95 +266,95 @@ struct LocalUniformData
 	Vec4 reserved_2;
 }
 
-struct VulkanGlobalUBO
-{
-	GlobalUniformData  uniform_data;
-	void*              mapped_mem;
-	VulkanBuffer       buffer;
-}
+// struct VulkanGlobalUBO
+// {
+// 	GlobalUniformData  uniform_data;
+// 	void*              mapped_mem;
+// 	VulkanBuffer       buffer;
+// }
 
-fn void? VulkanGlobalUBO.init(
-	&ubo,
-	VulkanContext* ctx,
-	Mat4 view = math::M4_IDENTITY,
-	Mat4 proj = math::M4_IDENTITY
-)
-{
-	ubo.buffer.init(
-		ctx,
-		GlobalUniformData.sizeof,
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		VK_SHARING_MODE_EXCLUSIVE,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-			| VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-			| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-	);
+// fn void? VulkanGlobalUBO.init(
+// 	&ubo,
+// 	VulkanContext* ctx,
+// 	Mat4 view = math::M4_IDENTITY,
+// 	Mat4 proj = math::M4_IDENTITY
+// )
+// {
+// 	ubo.buffer.init(
+// 		ctx,
+// 		GlobalUniformData.sizeof,
+// 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+// 		VK_SHARING_MODE_EXCLUSIVE,
+// 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+// 			| VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+// 			| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+// 	);
 
-	if (vkMapMemory(
-		ctx.dev.log_dev,
-		ubo.buffer.mem,
-		0,
-		GlobalUniformData.sizeof,
-		0,
-		&ubo.mapped_mem
-	)
-		!= VK_SUCCESS)
-	{
-		return MEMORY_MAP_FAILED~;
-	}
+// 	if (vkMapMemory(
+// 		ctx.dev.log_dev,
+// 		ubo.buffer.mem,
+// 		0,
+// 		GlobalUniformData.sizeof,
+// 		0,
+// 		&ubo.mapped_mem
+// 	)
+// 		!= VK_SUCCESS)
+// 	{
+// 		return MEMORY_MAP_FAILED~;
+// 	}
 
-	ubo.update(view, proj);
-}
+// 	ubo.update(view, proj);
+// }
 
-fn void VulkanGlobalUBO.update(&ubo, Mat4 view, Mat4 proj)
-{
-	ubo.uniform_data.view = view;
-	ubo.uniform_data.proj = proj;
-	mem::copy(
-		ubo.mapped_mem,
-		&ubo.uniform_data,
-		GlobalUniformData.sizeof
-	);
-}
+// fn void VulkanGlobalUBO.update(&ubo, Mat4 view, Mat4 proj)
+// {
+// 	ubo.uniform_data.view = view;
+// 	ubo.uniform_data.proj = proj;
+// 	mem::copy(
+// 		ubo.mapped_mem,
+// 		&ubo.uniform_data,
+// 		GlobalUniformData.sizeof
+// 	);
+// }
 
-fn void VulkanGlobalUBO.update_view(&ubo, Mat4 view)
-{
-	ubo.uniform_data.view = view;
-	mem::copy(
-		(char*)ubo.mapped_mem
-			+ $offsetof(ubo.uniform_data.view),
-		(char*)&ubo.uniform_data
-			+ $offsetof(ubo.uniform_data.view),
-		Mat4.sizeof
-	);
-}
+// fn void VulkanGlobalUBO.update_view(&ubo, Mat4 view)
+// {
+// 	ubo.uniform_data.view = view;
+// 	mem::copy(
+// 		(char*)ubo.mapped_mem
+// 			+ $offsetof(ubo.uniform_data.view),
+// 		(char*)&ubo.uniform_data
+// 			+ $offsetof(ubo.uniform_data.view),
+// 		Mat4.sizeof
+// 	);
+// }
 
-fn void VulkanGlobalUBO.update_proj(&ubo, Mat4 proj)
-{
-	ubo.uniform_data.proj = proj;
-	mem::copy(
-		(char*)ubo.mapped_mem
-			+ $offsetof(ubo.uniform_data.proj),
-		(char*)&ubo.uniform_data
-			+ $offsetof(ubo.uniform_data.proj),
-		Mat4.sizeof
-	);
-}
+// fn void VulkanGlobalUBO.update_proj(&ubo, Mat4 proj)
+// {
+// 	ubo.uniform_data.proj = proj;
+// 	mem::copy(
+// 		(char*)ubo.mapped_mem
+// 			+ $offsetof(ubo.uniform_data.proj),
+// 		(char*)&ubo.uniform_data
+// 			+ $offsetof(ubo.uniform_data.proj),
+// 		Mat4.sizeof
+// 	);
+// }
 
-fn void VulkanGlobalUBO.destroy(&ubo, VulkanContext* ctx)
-{
-	vkUnmapMemory(ctx.dev.log_dev, ubo.buffer.mem);
-	ubo.buffer.destroy(ctx);
-}
+// fn void VulkanGlobalUBO.destroy(&ubo, VulkanContext* ctx)
+// {
+// 	vkUnmapMemory(ctx.dev.log_dev, ubo.buffer.mem);
+// 	ubo.buffer.destroy(ctx);
+// }
 
 // ------ Local Ubo ------
 
-struct VulkanPushConstantBlock
-{
-	Mat4 model;
-}
+// struct VulkanPushConstantBlock
+// {
+// 	Mat4 mvp;
+// }
 
-fn void VulkanPushConstantBlock.update(&push_cnst, Mat4 new_model)
-{
-	push_cnst.model = new_model;
-}
+// fn void VulkanPushConstantBlock.update(&push_cnst, Mat4 new_mvp)
+// {
+// 	push_cnst.mvp = new_mvp;
+// }

@@ -25,10 +25,7 @@ const ColorRGBA COLOR_PURPLE_RGBA     = {0.5f, 0.0f, 0.5f, 1.0f};
 const ColorRGBA COLOR_YELLOW_RGBA     = {0.0f, 1.0f, 0.0f, 1.0f};
 const ColorRGBA COLOR_DARK_BLUE_RGBA  = {0.0f, 0.0f, 0.15f, 1.0f};
 
-const VkClearValue CLEAR_DEPTH_VALUE = {
-	.color = { .float_32 = COLOR_WHITE_RGBA },
-	.depth_stencil = {},
-};
+const VkClearDepthStencilValue CLEAR_DEPTH_VALUE = { .depth = 1.0f, .stencil = 0 };
 
 const VkOffset2D OFFSET_START = { 0, 0 };
 

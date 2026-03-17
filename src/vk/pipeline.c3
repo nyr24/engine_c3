@@ -70,7 +70,7 @@ struct VulkanPipelineConfig
 struct VulkanShaderModule
 {
 	VkShaderModule handle;
-	ElasticArray{VulkanShaderStage, (uint)VulkanShaderStageKind._COUNT} stages;
+	ElasticArray{VulkanShaderStage, VulkanShaderStageKind.len} stages;
 }
 
 struct VulkanShaderStage
@@ -79,7 +79,7 @@ struct VulkanShaderStage
 	VulkanShaderStageKind kind;
 }
 
-enum VulkanShaderStageKind : const inline char
+constdef VulkanShaderStageKind : inline char
 {
 	VERTEX              = 1 << 0,
 	FRAGMENT            = 1 << 1,
@@ -87,7 +87,6 @@ enum VulkanShaderStageKind : const inline char
 	GEOMETRY            = 1 << 3,
 	TESSELATION_CONTROL = 1 << 4,
 	TESSELATION_EVAL    = 1 << 5,
-	_COUNT
 }
 
 alias VulkanShaderStageKindBits = char;
@@ -226,7 +225,7 @@ fn void VulkanShader.create_pipeline(
         .stencil_test_enable = VK_FALSE,
     };
 
-	ElasticArray{VkPipelineShaderStageCreateInfo, (uint)VulkanShaderStageKind._COUNT} shader_stages;
+	ElasticArray{VkPipelineShaderStageCreateInfo, VulkanShaderStageKind.len} shader_stages;
 	shader_stages.resize(shader.mod.stages.size);
 	shader.mod.get_shader_stage_infos(shader_stages.array_view());
 

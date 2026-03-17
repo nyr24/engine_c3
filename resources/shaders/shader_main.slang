@@ -10,12 +10,12 @@ struct VSOutput {
     float2 texture_coord;
 };
 
-struct GlobalUniformObject {
-    float4x4    view;
-    float4x4    projection;
-    float4x4    padding_1;
-    float4x4    padding_2;
-};
+// struct GlobalUniformObject {
+//     float4x4    view;
+//     float4x4    projection;
+//     float4x4    padding_1;
+//     float4x4    padding_2;
+// };
 
 // struct LocalUniformObject {
 //     float4 diffuse_color;
@@ -25,12 +25,12 @@ struct GlobalUniformObject {
 // };
 
 struct PushConstantBlock {
-    float4x4    model;    
+    float4x4 mvp;    
 };
 
 // set 0 - global
-[[vk::binding(0, 0)]]
-ConstantBuffer<GlobalUniformObject> global_ubo; // view + proj mat
+// [[vk::binding(0, 0)]]
+// ConstantBuffer<GlobalUniformObject> global_ubo; // view + proj mat
 
 // set 1 - object
 // [[vk::binding(0, 1)]]
@@ -46,14 +46,14 @@ ConstantBuffer<GlobalUniformObject> global_ubo; // view + proj mat
 // Sampler2D normal;
 
 [[vk::push_constant]]
-ConstantBuffer<PushConstantBlock> push_constants; // model mat
+ConstantBuffer<PushConstantBlock> push_constant; // model mat
 
 // NOTE: TEMP
 [shader("vertex")]
-VSOutput vertMain(VSInput input) {
+VSOutput vertMain(VSInput input)
+{
     VSOutput output;
-    output.pos = mul(global_ubo.projection, mul(global_ubo.view, mul(push_constants.model, float4(input.pos, 1.0))));
-    // output.pos = float4(input.pos, 1.0);
+    output.pos = mul(push_constant.mvp, float4(input.pos, 1.0));
     output.texture_coord = input.texture_coord;
     output.normal = input.normal;
     return output;
@@ -68,5 +68,5 @@ float4 fragMain(VSOutput input) : SV_Target
     // float4 ambient_sample = ambient.Sample(input.texture_coord);
     // float4 normal_sample = normal.Sample(input.texture_coord);
     // return lerp(lerp(lerp(diffuse_sample, specular_sample, 0.2), ambient_sample, 0.2), normal_sample, 0.2);
-    return float4(1.0, 1.0, 1.0, 1.0);
+    return float4(0.0, 1.0, 0.0, 1.0);
 }

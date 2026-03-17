@@ -1,12 +1,6 @@
-module std::math;
+module engine;
 
-alias Vec4 = float[4];
-alias Vec3 = float[3];
-alias Vec2 = float[2];
-
-alias SimdVec4 = float[<4>];
-alias SimdVec3 = float[<3>];
-alias SimdVec2 = float[<2>];
+import std::math;
 
 struct AxisAngle {	
 	Vec3  axis;

@@ -4,85 +4,80 @@ import std::collections::elastic_array;
 
 const MAX_EVENT_CNT = 100u;
 
-enum EventCode : uint
+struct EventSystem
 {
-	MOUSE_MOVE,
+	EventHandlerList[EventCode.len] handlers;
+}
+
+// NOTE: first two events are the same value as glfw
+// Don't reorder
+enum EventCode : inline uint
+{
 	MOUSE_DOWN,
 	MOUSE_UP,
+	MOUSE_MOVE,
 	MOUSE_WHEEL,
 	KEY_DOWN,
 	KEY_UP,
 	RESIZE,
-	_COUNT
 }
 
 union EventContext
 {
-    ulong[2]  u64;
-    long[2]   i64;
-    double[2] f64;
-    uint[4]   u32;
-    int[4]    i32;
-    float[4]  f32;
-    ushort[8] u16;
-    short[8]  i16;
-    char      u8;
-    ichar     i8;
+    ulong[2]    u64;
+    long[2]     i64;
+    double[2]   f64;
+    uint[4]     u32;
+    int[4]      i32;
+    float[4]    f32;
+    ushort[8]   u16;
+    short[8]    i16;
+    char[16]    u8;
+    ichar[16]   i8;
+	bool[16]    b8;
 }
 
-// if returns true, dont proceed with calls to other listeners (event has been handled)
-alias OnEventFn = fn bool(EventContext*);
-alias EventList = ElasticArray{Event, MAX_EVENT_CNT};
-
-struct Event
-{
-	EventCode  code;
-	OnEventFn  callback;
-}
-
-struct EventSystem
-{
-	ElasticArray{EventList, (uint)EventCode._COUNT} event_lists;
-}
+// if returns true, dont proceed with calls to other handlers (event has been handled)
+alias EventHandlerFn = fn bool(EventContext ctx, void* listener);
+alias EventHandlerList = ElasticArray{EventHandlerFn, MAX_EVENT_CNT};
 
 <*
-	@require (uint)ev.code < event_sys.event_lists.size : "Should be in bounds"
-	@require ev.callback != null
+	@require handler != null : "handler should be valid pointer"
 *>
-fn void EventSystem.set_event(&event_sys, Event ev)
+fn void EventSystem.add_event_handler(&event_sys, EventCode code, EventHandlerFn handler)
 {
-	event_sys.event_lists[(uint)ev.code].push(ev);
+	event_sys.handlers[code].push(handler);
 }
 
-<*
-	@require (uint)code < event_sys.event_lists.size : "Should be in bounds"
-*>
-fn void EventSystem.execute_event_listeners(&event_sys, EventCode code, EventContext* ev_ctx)
+fn void EventSystem.execute_handlers_for_event(&event_sys, EventCode code, EventContext ev_ctx, void* listener)
 {
-	foreach (ev : event_sys.event_lists[(uint)code]) {
-		if (ev.callback(ev_ctx)) {
+	foreach (handler : event_sys.handlers[code]) {
+		if (handler(ev_ctx, listener)) {
 			break;
 		}
 	}
 }
 
 <*
-	@require (uint)code < event_sys.event_lists.size : "Should be in bounds"
-	@require callback != null
+	@require handler != null : "handler should be valid pointer"
 *>
-fn void EventSystem.remove_event(&event_sys, EventCode code, OnEventFn callback)
+fn void EventSystem.remove_event_handler(&event_sys, EventCode code, EventHandlerFn handler)
 {
-	EventList* ev_list = &event_sys.event_lists[(uint)code];
-	foreach (uint ind, ev : ev_list) {
-		if (ev.callback == callback) {
-			event_sys.event_lists[(uint)code].remove_unordered(ind);
+	foreach (uint ind, curr_handler : event_sys.handlers[code]) {
+		if (handler == curr_handler) {
+			event_sys.handlers[code].remove_unordered(ind);
 		}
 	}
 }
 
 fn void EventSystem.reset_state(&event_sys)
 {
-	foreach (&ev_list : event_sys.event_lists) {
-		ev_list.clear();
+	foreach (&handler_list : event_sys.handlers) {
+		handler_list.clear();
 	}
+}
+
+fn void EventSystem.reset_state_for_event(&event_sys, EventCode code)
+{
+	event_sys.handlers[code].clear();
 }

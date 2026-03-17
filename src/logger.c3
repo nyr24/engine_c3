@@ -12,7 +12,6 @@ enum LogLevel : inline uint
 	WARN,
 	ERROR,
 	FATAL,
-	_COUNT
 }
 
 const BUFF_LEN = 512;
@@ -20,7 +19,7 @@ const MSG_BUFF_LEN = 480;
 
 const String LOG_COLOR_RESET = "\x1b[0m";
 
-String[LogLevel._COUNT] color_strings = {
+String[LogLevel.len] color_strings = {
     "\x1b[1;32",
     "\x1b[1;34",
     "\x1b[1;28",
@@ -30,7 +29,7 @@ String[LogLevel._COUNT] color_strings = {
     "\x1b[0;41",
 };
 
-String[LogLevel._COUNT] log_level_as_str = {
+String[LogLevel.len] log_level_as_str = {
     "[INFO]: ",
     "[DEBUG]: ",
     "[TRACE]: ",

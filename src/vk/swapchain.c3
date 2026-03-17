@@ -26,19 +26,21 @@ enum SwapchainPresentRes
 {
 	SUCCESS,
 	NEEDS_RECREATION,
+	NEEDS_RECREATION_CANT_PROCEED,
 }
 
 faultdef
 	SWAPCHAIN_FAILED_TO_FIND_FORMAT,
 	SWAPCHAIN_FAILED_TO_CREATE_DEPTH_IMAGE;
 
-fn void? init_swapchain(VulkanContext* ctx, VkExtent2D extent)
+fn void? VulkanSwapchain.init(&swapchain, VulkanContext* ctx, VkExtent2D extent)
 {
+	swapchain.recreation_scheduled = false;
 	if (catch excuse = ctx.swapchain.acquire_format_and_present_mode(&ctx.dev.swapchain_supp_info)) {
 		logger::logn(FATAL, "Failed to acquire appropriate format for swapchain");
 		return excuse~;
 	}
-	if (catch excuse = ctx.swapchain.create_inner(ctx, extent)) {
+	if (catch excuse = swapchain.create_inner(ctx, extent)) {
 		logger::logn(FATAL, "Failed create swapchain");
 		return excuse~;
 	}
@@ -58,17 +60,30 @@ fn SwapchainPresentRes VulkanSwapchain.acquire_next_image_index(
 	    result = vkAcquireNextImageKHR(ctx.dev.log_dev, swapchain.handle, timeout_ns, image_available_semaphore, null, &image_index);
 	} while (result == VK_NOT_READY);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        logger::logn(WARN, "Swapchain is outdated, scheduling recreation...");
-		swapchain.recreation_scheduled = true;
-		return NEEDS_RECREATION;
-    }
-    else if (result != VK_SUCCESS) {
-        logger::logn(FATAL, "Failed to acquire swapchain image, reason: %s", result);
-		abort();
-    }
 	swapchain.curr_image_index = image_index;
-	return SUCCESS;
+
+	switch (result) {
+		case VK_SUCCESS:
+			return SUCCESS;
+		case VK_SUBOPTIMAL_KHR:
+			VkExtent2D new_coords @noinit;
+			ctx.app_ctx.window.get_screen_coordinates(&new_coords);
+			VkExtent2D curr_coords = ctx.renderer.get_extent();
+			if (new_coords != curr_coords) {
+		        logger::logn(INFO, "Swapchain is outdated, scheduling recreation...");
+				ctx.renderer.update_viewport_scissors(new_coords);
+				swapchain.recreation_scheduled = true;
+				return NEEDS_RECREATION;
+			}
+			return SUCCESS;
+		case VK_ERROR_OUT_OF_DATE_KHR:
+	        logger::logn(WARN, "Swapchain is outdated, can't proceed next frame, scheduling recreation...");
+			swapchain.recreation_scheduled = true;
+			return NEEDS_RECREATION_CANT_PROCEED;
+		default:
+	        logger::logn(FATAL, "Failed to acquire swapchain image, reason: %s", result);
+			abort();
+	}
 }
 
 fn SwapchainPresentRes VulkanSwapchain.present(
@@ -89,15 +104,27 @@ fn SwapchainPresentRes VulkanSwapchain.present(
     };
 
     VkResult result = vkQueuePresentKHR(present_queue, &present_info);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        logger::logn(WARN, "Swapchain is outdated, recreating...");
-		swapchain.recreation_scheduled = true;
-		return NEEDS_RECREATION;
-    } else if (result != VK_SUCCESS) {
-        logger::logn(FATAL, "Failed to present swapchain image, reason: %d", result);
-		abort();
-    }
-	return SUCCESS;
+	switch (result) {
+		case VK_SUCCESS:
+			return SUCCESS;
+		case VK_SUBOPTIMAL_KHR:
+			VkExtent2D new_coords @noinit;
+			ctx.app_ctx.window.get_screen_coordinates(&new_coords);
+			VkExtent2D prev_coords = ctx.renderer.scissors.extent;
+			if (new_coords != prev_coords) {
+		        logger::logn(INFO, "Swapchain is outdated, scheduling recreation...");
+				swapchain.recreation_scheduled = true;
+				return NEEDS_RECREATION;
+			}
+			return SUCCESS;
+		case VK_ERROR_OUT_OF_DATE_KHR:
+	        logger::logn(WARN, "Swapchain is outdated, can't proceed next frame, scheduling recreation...");
+			swapchain.recreation_scheduled = true;
+			return NEEDS_RECREATION_CANT_PROCEED;
+		default:
+	        logger::logn(FATAL, "Failed to present swapchain image, reason: %d", result);
+			abort();
+	}
 }
 
 fn void? VulkanSwapchain.recreate(&swapchain, VulkanContext* ctx, VkExtent2D extent)
@@ -105,7 +132,17 @@ fn void? VulkanSwapchain.recreate(&swapchain, VulkanContext* ctx, VkExtent2D ext
 	vkDeviceWaitIdle(ctx.dev.log_dev);
 	swapchain.destroy(ctx);
 	swapchain.create_inner(ctx, extent)!;
-	swapchain.recreation_scheduled = false;
+}
+
+fn void VulkanSwapchain.recreate_if_needed(&swapchain, VulkanContext* ctx)
+{
+	if (@unlikely(swapchain.recreation_scheduled)) {
+		VkExtent2D new_coords = ctx.renderer.get_extent();
+		logger::logn(INFO, "Recreating swapchain, new screen coordinates: %d %d", new_coords.width, new_coords.height);
+		swapchain.recreate(ctx, new_coords)!!;
+		swapchain.recreation_scheduled = false;
+		ctx.renderer.resize_scheduled = true;
+	}
 }
 
 fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D extent)
@@ -115,8 +152,13 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 	
 	VkExtent2D min_extent = supp_info.capabilities.min_image_extent;
 	VkExtent2D max_extent = supp_info.capabilities.max_image_extent;
-	extent.width = math::clamp(extent.width, min_extent.width, max_extent.width);
-	extent.height = math::clamp(extent.height, min_extent.height, max_extent.height);
+	extent.width = math::max(extent.width, min_extent.width);
+	extent.height = math::max(extent.height, min_extent.height);
+
+	if (max_extent.width > min_extent.width) {
+		extent.width = math::min(extent.width, max_extent.width);
+		extent.height = math::min(extent.height, max_extent.height);
+	}
 
     uint create_image_count = supp_info.capabilities.min_image_count + 1;
     if (supp_info.capabilities.max_image_count > 0 && create_image_count > supp_info.capabilities.max_image_count) {
@@ -135,7 +177,7 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 	    .pre_transform = supp_info.capabilities.current_transform,
 	    .composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 	    .present_mode = swapchain.present_mode,
-	    .old_swapchain = null,
+	    .old_swapchain = swapchain.handle,
 	};
 
     if (dev.queue_indices.graphics.fam != dev.queue_indices.present.fam) {

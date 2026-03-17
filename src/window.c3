@@ -1,17 +1,19 @@
 module window;
 
+import engine;
 import glfw;
 import vk;
 
-struct Window {
-	glfw::GLFWwindow* handle;
-	uint 	width;
-	uint 	height;
+struct Window
+{
+	GLFWwindow* handle;
+	uint 	    width;
+	uint 	    height;
 }
 
 faultdef WINDOW_CREATION_FAILED, VULKAN_NOT_SUPPORTED;
 
-fn Window? create(ZString name, uint width, uint height) {
+fn Window? create(App* app_ctx, ZString name, uint width, uint height) {
 	if (!glfw::init()) {
 		return WINDOW_CREATION_FAILED~;
 	}
@@ -29,17 +31,54 @@ fn Window? create(ZString name, uint width, uint height) {
 
 	Window window = { .handle = handle, .width = width, .height = height };
 
-    // out_state.attach_event_callbacks();
+	glfw::setWindowUserPointer(window.handle, app_ctx);
+    glfw::setCursorPosCallback(window.handle, &glfw_mouse_move_callback);
+    glfw::setMouseButtonCallback(window.handle, &glfw_mouse_btn_callback);
+    glfw::setKeyCallback(window.handle, &glfw_key_callback);
+    glfw::setScrollCallback(window.handle, &glfw_mouse_wheel_callback);
 
-    // SF_ASSERT_MSG(out_state.key_callback && out_state.mouse_move_callback && out_state.mouse_btn_callback && out_state.mouse_wheel_callback, "Callbacks should be set");
-
-    // glfwSetKeyCallback(out_state.window, out_state.key_callback);
-    // glfwSetMouseButtonCallback(out_state.window, out_state.mouse_btn_callback);
-    // glfwSetCursorPosCallback(out_state.window, out_state.mouse_move_callback);
-    // glfwSetScrollCallback(out_state.window, out_state.mouse_wheel_callback);
-    // glfwSetInputMode(out_state.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	$if $feature(SF_HIDE_CURSOR):
+	    glfw::setInputMode(window.handle, glfw::CURSOR, glfw::CURSOR_DISABLED);
+	$endif
 
     return window;
+}
+
+fn void glfw_mouse_move_callback(GLFWwindow* window, double x, double y)
+{
+	App* app_ctx = (App*)glfw::getWindowUserPointer(window);
+	MousePos pos @noinit;
+	pos.x = (float)x;
+	pos.y = (float)y;
+	app_ctx.input_sys.process_mouse_move(pos);
+}
+
+<*
+	@require action >= 0 && action <= 1 : "Action should be PRESS or RELEASE, so it converts to EventCode"
+*>
+fn void glfw_mouse_btn_callback(GLFWwindow* window, int btn, int action, int mods)
+{
+	App* app_ctx = (App*)glfw::getWindowUserPointer(window);
+	app_ctx.input_sys.process_mouse_button((MouseButton)btn, action == glfw::PRESS);
+}
+
+fn void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
+{
+	if (action == glfw::REPEAT) {
+		return;
+	}
+
+	App* app_ctx = (App*)glfw::getWindowUserPointer(window);
+	app_ctx.input_sys.process_key(
+		(uint)key,
+		action == glfw::PRESS,
+	);
+}
+
+fn void glfw_mouse_wheel_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	App* app_ctx = (App*)glfw::getWindowUserPointer(window);
+	app_ctx.input_sys.process_mouse_wheel(yoffset > 0);
 }
 
 fn void Window.create_vk_surface(&window, VkInstance instance, VkSurfaceKHR* surface) {
@@ -51,7 +90,7 @@ fn void Window.create_vk_surface(&window, VkInstance instance, VkSurfaceKHR* sur
 *>
 fn void Window.get_screen_coordinates(&window, VkExtent2D* out_coords)
 {
-	glfw::getFramebufferSize(window, (CInt*)&out_coords.width, (CInt*)&out_coords.height);
+	glfw::getFramebufferSize(window.handle, (CInt*)&out_coords.width, (CInt*)&out_coords.height);
 }
 
 fn void Window.destroy(&window) {

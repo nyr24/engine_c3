@@ -14,33 +14,41 @@ COMPILE_SHADERS=1
 VSYNC=0;
 CMAKE_OPTS=""
 CMAKE_BUILD_OPTS=""
+# OPTION - passed to the program
+# SWITCH - internal to this script, value of $PLATFORM
+PLATFORM_WAYLAND_OPTION="PLATFORM_WAYLAND"
+PLATFORM_X11_OPTION="PLATFORM_X11"
+PLATFORM_WIN32_OPTION="PLATFORM_WIN32"
+PLATFORM_WAYLAND_SWITCH="WAYLAND"
+PLATFORM_X11_SWITCH="X11"
+PLATFORM_WIN32_SWITCH="WIN32"
+PLATFORM=$PLATFORM_WIN32_SWITCH
+FORCE_X11=0
+LIBRARIES_WIN32=""
+LIBRARIES_WAYLAND="-l wayland-client "
+LIBRARIES_X11="-l xcb -l xcb-xkb -l X11 -l X11-xcb "
 # TODO: vulkan driver should be configurable
 LIBRARIES="-l m -l glfw3 -l vulkan_radeon -l volk "
-PLATFORM_WAYLAND="PLATFORM_WAYLAND"
-PLATFORM_X11="PLATFORM_X11"
-PLATFORM_WIN32="PLATFORM_WIN32"
 NOT_SUPPORTED_MSG="This os is not supported for now, sorry:("
 
 # check OS
 case "$OSTYPE" in
     msys*)
       echo "Detected OS: Windows (MSYS/Git Bash)"
-      C3_OPTS+="-D $PLATFORM_WIN32 "
+      PLATFORM="$PLATFORM_WIN32_SWITCH"
     ;;
     cygwin*)
       echo "Detected OS: Windows (Cygwin)"
-      C3_OPTS+="-D $PLATFORM_WIN32 "
+      PLATFORM="$PLATFORM_WIN32_SWITCH"
     ;;
     linux*)
       echo "Detected OS: Linux"
       if [ "$XDG_SESSION_TYPE" == "wayland" ]; then
         echo "session: Wayland"
-        C3_OPTS+="-D $PLATFORM_WAYLAND "
-        LIBRARIES+="-l wayland-client "
+        PLATFORM="$PLATFORM_WAYLAND_SWITCH"
       elif [ "$XDG_SESSION_TYPE" == "x11" ]; then
         echo "session: X11."
-        C3_OPTS+="-D $PLATFORM_X11 "
-        LIBRARIES+="-l xcb -l xcb-xkb -l X11 -l X11-xcb "
+        PLATFORM="$PLATFORM_X11_SWITCH"
       fi
     ;;
     darwin*)
@@ -55,56 +63,88 @@ case "$OSTYPE" in
     ;;
 esac
 
-C3_OPTS+="$LIBRARIES "
-
 for arg in "$@"; do
   case "$arg" in
-  -r | --release)
+  -r | -release)
     IS_RELEASE=1
     ;;
-  -small | --small)
+  -small | -small)
     C3_OPTS+="--optsize=tiny "
     ;;
-  -san | --sanitize)
+  -san | -sanitize)
     echo "Building with sanitizer"
     C3_OPTS+="--sanitize=address "
     ;;
-  -strict | --strict)
+  -strict)
     C3_OPTS+="--validation=obnoxious "
     ;;
-  -c | --cleanup)
+  -c | -cleanup)
     echo "Rebuilding"
     CMAKE_BUILD_OPTS+="--clean-first "
     ;;
-  -v | --verb)
+  -v | -verb)
     C3_OPTS+="-v --build-env "
     IS_VERBOSE=1
     ;;
-  --vsync)
+  -vsync)
     echo "Vsync enabled"
-    C3_OPTS+="-D VSYNC"
+    C3_OPTS+="-D SF_VSYNC "
     ;;
-  --test | -t)
+  -test | -t)
     echo "Building tests..."
     BUILD_TESTS=1
     ;;
-  -as | --assets)
+  -as | -assets)
     echo "Copying assets"
     COPY_ASSETS=1
     ;;
-  -sh | --shaders)
+  -sh | -shaders)
     echo "Compiling shaders"
     COMPILE_SHADERS=1
     ;;
-  --counter)
+  -counter)
     echo "Frame Counter - ON"
     C3_OPTS+="-D SF_FRAME_COUNT "
+    ;;
+  -force_x11)
+    echo "Forcing X11 instead of Wayland"
+    CMAKE_OPTS+="-D FORCE_X11=ON "
+    PLATFORM="$PLATFORM_X11_SWITCH"
+    ;;
+  -no_cursor)
+    C3_OPTS+="-D SF_HIDE_CURSOR "
     ;;
   *)
     echo "Unknown argument: $arg"
     ;;
   esac
 done
+
+# Finally make decision about OS and linked Libraries:
+
+case "$PLATFORM" in
+    $PLATFORM_WIN32_SWITCH)
+      echo "Using environment for OS Windows"
+      C3_OPTS+="-D $PLATFORM_WIN32_OPTION "
+      LIBRARIES+="$LIBRARIES_WIN32 "
+      ;;
+    $PLATFORM_X11_SWITCH)
+      echo "Using environment for OS Linux (X11 session)"
+      C3_OPTS+="-D $PLATFORM_X11_OPTION "
+      LIBRARIES+="$LIBRARIES_X11 "
+      ;;
+    $PLATFORM_WAYLAND_SWITCH)
+      echo "Using environment for OS Linux (Wayland session)"
+      C3_OPTS+="-D $PLATFORM_WAYLAND_OPTION "
+      LIBRARIES+="$LIBRARIES_WAYLAND "
+      ;;
+    *)
+      echo $NOT_SUPPORTED_MSG
+      exit
+      ;;
+esac
+
+C3_OPTS+="$LIBRARIES "
 
 # Debug
 if [ $IS_RELEASE -eq 0 ]; then

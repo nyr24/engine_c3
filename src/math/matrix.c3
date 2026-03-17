@@ -1,11 +1,7 @@
-module std::math;
+module matrix;
 
 import std::io;
-
-alias Mat4 = matrix::Matrix4x4{float};
-alias Mat3 = matrix::Matrix3x3{float};
-alias M4_IDENTITY = matrix::IDENTITY4{float};
-alias M3_IDENTITY = matrix::IDENTITY3{float};
+import std::math;
 
 const M4_LEN = 16;
 const M4_ROWS = 4;
@@ -26,17 +22,26 @@ fn void Mat3.print(&m) {
 	}
 }
 
-// non throwing wrapper
-fn Mat4 Mat4.n_inverse(&m) {
-	return m.inverse() ?? M4_IDENTITY;
-}
+// NOTE: article reference https://www.kdab.com/projection-matrices-with-vulkan-part-2/
 
-fn void Mat4.n_inverse_inplace(&m) {
-	*m = m.inverse() ?? M4_IDENTITY;
+// Same, but applying 180deg rotation over X
+fn Mat4 perspective_rotated(float fovy, float aspect, float z_near, float z_far)
+{
+	float tan_half_fovy = math::tan(fovy / 2);
+
+    float fn_scale = 1 / (z_near - z_far);
+
+	return (Mat4) { .m = {
+		[0] = 1 / (aspect * tan_half_fovy),
+		[5] = 1 / (tan_half_fovy),
+		[10] = z_far * fn_scale,
+		// [11] = -1,
+		[11] = 1,
+		[14] = z_far * z_near * fn_scale,
+	} };
 }
 
 // Mat3x3 -----------------------------------------------------------------------------------
-
 
 // struct Matrix3x3 (Printable) {
 // 	union data {
@@ -260,14 +265,14 @@ fn void Mat4.n_inverse_inplace(&m) {
 
 // // Mat4x4 -----------------------------------------------------------------------------------
 
-// struct Matrix4x4 (Printable) {
+// struct Mat4 (Printable) {
 // 	union data {
 // 		Vec4[M4_ROWS] rows;
 // 		float[M4_LEN] single;
 // 	}
 // }
 
-// const Matrix4x4 M4_IDENTITY = {
+// const Mat4 M4_IDENTITY = {
 // 	.data = {
 // 		.rows = {
 // 			{ 1, 0, 0, 0 },
@@ -282,24 +287,24 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	X, Y, Z
 // }
 
-// fn Matrix4x4 m4_new(float[M4_LEN]* values) {
-// 	Matrix4x4 res @noinit;
+// fn Mat4 m4_new(float[M4_LEN]* values) {
+// 	Mat4 res @noinit;
 // 	for (uint i = 0; i < M4_LEN; ++i) {
 // 		res.data.single[i] = (*values)[i];
 // 	}
 // 	return res;
 // }
 
-// fn Matrix4x4 m4_from_rows(Vec4[4]* input_rows) {
-// 	Matrix4x4 res @noinit;
+// fn Mat4 m4_from_rows(Vec4[4]* input_rows) {
+// 	Mat4 res @noinit;
 // 	for (uint y = 0; y < M4_ROWS; ++y) {
 // 		res.data.rows[y] = (*input_rows)[y];
 // 	}
 // 	return res;
 // }
 
-// fn Matrix4x4 m4_from_m3(Matrix3x3* mat3) {
-// 	Matrix4x4 res @noinit;
+// fn Mat4 m4_from_m3(Matrix3x3* mat3) {
+// 	Mat4 res @noinit;
 //     for (uint y = 0; y < M3_ROWS; ++y) {
 //         for (uint x = 0; x < M3_COLS; ++x) {
 //             res.set_at_rc(y, x, mat3.at_rc(y, x));
@@ -310,47 +315,47 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	return res;
 // }
 
-// fn Matrix4x4 m4_identity() @inline {
+// fn Mat4 m4_identity() @inline {
 // 	return M4_IDENTITY;
 // }
 
-// fn void Matrix4x4.identity_inplace(&self) {
+// fn void Mat4.identity_inplace(&self) {
 // 	*self = M4_IDENTITY;
 // }
 
-// fn bool Matrix4x4.is_identity(&self) {
+// fn bool Mat4.is_identity(&self) {
 // 	return self.eq(&M4_IDENTITY);
 // }
 
-// fn Matrix4x4 m4_translation(Vec3 translation_vec) {
-//     Matrix4x4 res = M4_IDENTITY;
+// fn Mat4 m4_translation(Vec3 translation_vec) {
+//     Mat4 res = M4_IDENTITY;
 //     res.set_translation_vec(translation_vec);
 //     return res;
 // }
 
-// fn void Matrix4x4.translate_inplace(&self, Vec3 translation_vec) {
-//     Matrix4x4 rhs = m4_translation(translation_vec);
+// fn void Mat4.translate_inplace(&self, Vec3 translation_vec) {
+//     Mat4 rhs = m4_translation(translation_vec);
 //     self.mul_inplace(&rhs);
 // }
 
-// fn Matrix4x4 m4_scaling(Vec3 scaling_vec) {
-//     Matrix4x4 res = M4_IDENTITY;
+// fn Mat4 m4_scaling(Vec3 scaling_vec) {
+//     Mat4 res = M4_IDENTITY;
 //     res.set_scaling_vec(scaling_vec);
 //     return res;
 // }
 
-// fn void Matrix4x4.scale_inplace(&self, Vec3 scaling_vec) {
-//     Matrix4x4 rhs = m4_scaling(scaling_vec);
+// fn void Mat4.scale_inplace(&self, Vec3 scaling_vec) {
+//     Mat4 rhs = m4_scaling(scaling_vec);
 //     self.mul_inplace(&rhs);
 // }
 
-// fn Matrix4x4 m4_rotation(float rotate_deg, Axis axis) {
-// 	Matrix4x4 res = M4_IDENTITY;
+// fn Mat4 m4_rotation(float rotate_deg, Axis axis) {
+// 	Mat4 res = M4_IDENTITY;
 //     res.rotate_inplace(rotate_deg, axis);
 //     return res;
 // }
 
-// fn void Matrix4x4.rotate_inplace(&self, float rotate_deg, Axis axis) {
+// fn void Mat4.rotate_inplace(&self, float rotate_deg, Axis axis) {
 //     float sin = (float)math::sin(math::deg_to_rad(rotate_deg));
 //     float cos = (float)math::cos(math::deg_to_rad(rotate_deg));
 
@@ -376,13 +381,13 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     }
 // }
 
-// fn Matrix4x4 m4_rotation_arbitrary_axis(float angle_deg, Vec3 axis) {
-//     Matrix4x4 res = M4_IDENTITY;
+// fn Mat4 m4_rotation_arbitrary_axis(float angle_deg, Vec3 axis) {
+//     Mat4 res = M4_IDENTITY;
 // 	res.rotate_arbitrary_axis_inplace(angle_deg, axis);
 //     return res;
 // }
 
-// fn void Matrix4x4.rotate_arbitrary_axis_inplace(&self, float angle_deg, Vec3 axis) {
+// fn void Mat4.rotate_arbitrary_axis_inplace(&self, float angle_deg, Vec3 axis) {
 //     float angle_rad = (float)math::deg_to_rad(angle_deg);
 //     float cos = (float)math::cos(angle_rad);
 //     float sin = (float)math::sin(angle_rad);
@@ -416,32 +421,32 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     self.set_row(2, row_2);
 // }
 
-// fn Matrix4x4 m4_rotation_many(AxisAngle[] axis_angles) {
-//     Matrix4x4 res = M4_IDENTITY;
+// fn Mat4 m4_rotation_many(AxisAngle[] axis_angles) {
+//     Mat4 res = M4_IDENTITY;
 // 	res.rotate_many_inplace(axis_angles);
 //     return res;
 // }
 
-// fn void Matrix4x4.rotate_many_inplace(&self, AxisAngle[] axis_angles) {
+// fn void Mat4.rotate_many_inplace(&self, AxisAngle[] axis_angles) {
 // 	const MAX_ALLOWED_INPUT = 6;
 // 	assert(axis_angles.len > MAX_ALLOWED_INPUT);
-// 	FixedArray{Matrix4x4, MAX_ALLOWED_INPUT} matrices;
+// 	FixedArray{Mat4, MAX_ALLOWED_INPUT} matrices;
 
 // 	foreach (axis_angle : axis_angles) {
-// 		Matrix4x4* mat = matrices.pull();
+// 		Mat4* mat = matrices.pull();
 // 		mat.rotate_arbitrary_axis_inplace(axis_angle.angle, axis_angle.axis);
 // 	}
 	
 //     self.mul_many_inplace(&matrices.entries);
 // }
 
-// fn Matrix4x4 Matrix4x4.mul_new(Matrix4x4* self, Matrix4x4* rhs) {
-// 	Matrix4x4 res = *self;
+// fn Mat4 Mat4.mul_new(Mat4* self, Mat4* rhs) {
+// 	Mat4 res = *self;
 // 	res.mul_inplace(rhs);
 // 	return res;
 // }
 
-// fn void Matrix4x4.mul_inplace(Matrix4x4* self, Matrix4x4* rhs) {
+// fn void Mat4.mul_inplace(Mat4* self, Mat4* rhs) {
 // 	for (uint y = 0; y < M4_ROWS; ++y) {
 // 		Vec4 temp_row @noinit;
 // 		Vec4 lv = self.get_row(y);
@@ -453,13 +458,13 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	}
 // }
 
-// fn Matrix4x4 Matrix4x4.mul_many_new(&self, Matrix4x4[] inputs) {
-//     Matrix4x4 res = M4_IDENTITY;
+// fn Mat4 Mat4.mul_many_new(&self, Mat4[] inputs) {
+//     Mat4 res = M4_IDENTITY;
 // 	res.mul_many_inplace(inputs);
 //     return res;
 // }
 
-// fn void Matrix4x4.mul_many_inplace(&self, Matrix4x4[] inputs) {
+// fn void Mat4.mul_many_inplace(&self, Mat4[] inputs) {
 //     for (uint y = 0; y < M4_ROWS; ++y) {
 //         Vec4 row = self.get_row(y);
 //         Vec4 col @noinit;
@@ -477,7 +482,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     }
 // }
 
-// fn Vec4 Matrix4x4.mul_vec4(&self, Vec4 rhs) {
+// fn Vec4 Mat4.mul_vec4(&self, Vec4 rhs) {
 //     Vec4 res @noinit;
 
 //     for (uint y = 0; y < M4_ROWS; ++y) {
@@ -488,13 +493,13 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     return res;
 // }
 
-// fn Matrix4x4 Matrix4x4.transpose_new(&self) {
-//     Matrix4x4 res = *self;
+// fn Mat4 Mat4.transpose_new(&self) {
+//     Mat4 res = *self;
 //     res.transpose_inplace();
 //     return res;
 // }
 
-// fn void Matrix4x4.transpose_inplace(&self) {
+// fn void Mat4.transpose_inplace(&self) {
 //     util::swap_ptrs(self.at_ptr(1), self.at_ptr(4));
 //     util::swap_ptrs(self.at_ptr(2), self.at_ptr(8));
 //     util::swap_ptrs(self.at_ptr(3), self.at_ptr(12));
@@ -503,13 +508,13 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     util::swap_ptrs(self.at_ptr(11), self.at_ptr(14));
 // }
 
-// fn Matrix4x4 Matrix4x4.inverse_new(&self) {
-//     Matrix4x4 res = *self;
+// fn Mat4 Mat4.inverse_new(&self) {
+//     Mat4 res = *self;
 //     res.inverse_inplace();
 //     return res;
 // }
 
-// fn void Matrix4x4.inverse_inplace(&self) {
+// fn void Mat4.inverse_inplace(&self) {
 //     if (self.is_affine()) {
 //         self.inverse_affine_inplace();
 //     } else {
@@ -519,13 +524,13 @@ fn void Mat4.n_inverse_inplace(&m) {
 
 // // NOTE: this should be known from the context
 // // computing this explicitly would be expensive, though can be used in Debug mode
-// fn bool Matrix4x4.is_orthogonal(&self) {
-//     Matrix4x4 transpose = self.transpose_new();
-//     Matrix4x4 res = self.mul_new(&transpose);
+// fn bool Mat4.is_orthogonal(&self) {
+//     Mat4 transpose = self.transpose_new();
+//     Mat4 res = self.mul_new(&transpose);
 //     return res.is_identity();
 // }
 
-// fn bool Matrix4x4.is_affine(&self) {
+// fn bool Mat4.is_affine(&self) {
 //     Vec4 affine_row = { 0, 0, 0, 1 };
 //     Vec4 last_row_v = self.get_row(3);
 //     return last_row_v == affine_row;
@@ -554,7 +559,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // //  [ --+-- ]   =  [ ----+--------- ]    (T denotes 1x3 translation)
 // //  [ 0 | 1 ]      [  0  |     1    ]    (R^T denotes R-transpose)
 
-// fn void Matrix4x4.inverse_euclidean_inplace(&self) {
+// fn void Mat4.inverse_euclidean_inplace(&self) {
 //     util::swap_ptrs(self.at_ptr(1), self.at_ptr(4));
 //     util::swap_ptrs(self.at_ptr(2), self.at_ptr(8));
 //     util::swap_ptrs(self.at_ptr(6), self.at_ptr(9));
@@ -584,7 +589,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // ///////////////////////////////////////////////////////////////////////////////
 // // NOTE: formula: https://stackoverflow.com/questions/2624422/efficient-4x4-matrix-inverse-affine-transform
 
-// fn void Matrix4x4.inverse_affine_inplace(&self) {
+// fn void Mat4.inverse_affine_inplace(&self) {
 //     Matrix3x3 sub_mat = m3_from_m4(self);
 //     sub_mat.inverse_inplace();
 
@@ -605,7 +610,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // // If cannot find inverse, return indentity matrix
 // // M^-1 = adj(M) / det(M)
 
-// fn void Matrix4x4.inverse_general_inplace(&m) {
+// fn void Mat4.inverse_general_inplace(&m) {
 //     float cofactor0 = cofactor(m.at(5), m.at(6), m.at(7), m.at(9), m.at(10), m.at(11), m.at(13), m.at(14), m.at(15));
 //     float cofactor1 = cofactor(m.at(4), m.at(6), m.at(7), m.at(8), m.at(10), m.at(11), m.at(12), m.at(14), m.at(15));
 //     float cofactor2 = cofactor(m.at(4), m.at(5), m.at(7), m.at(8), m.at(9), m.at(11), m.at(12), m.at(13), m.at(15));
@@ -670,7 +675,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // }
 
 // // NOTE: fast video https://www.youtube.com/watch?v=NEOqegcMw-Q
-// fn float Matrix4x4.determinant(&m) {
+// fn float Mat4.determinant(&m) {
 //     return m.at(0) * cofactor(m.at(5), m.at(6), m.at(7), m.at(9), m.at(10), m.at(11), m.at(13), m.at(14), m.at(15)) -
 //         m.at(1) * cofactor(m.at(4), m.at(6), m.at(7), m.at(8), m.at(10), m.at(11), m.at(12), m.at(14), m.at(15)) +
 //         m.at(2) * cofactor(m.at(4), m.at(5), m.at(7), m.at(8), m.at(9), m.at(11), m.at(12), m.at(13), m.at(15)) -
@@ -684,13 +689,13 @@ fn void Mat4.n_inverse_inplace(&m) {
 //         m2 * (m3 * m7 - m4 * m6);
 // }
 
-// fn Matrix4x4 m4_look_at(Vec3 pos, Vec3 target, Vec3 world_up) {
+// fn Mat4 m4_look_at(Vec3 pos, Vec3 target, Vec3 world_up) {
 //     Vec3 dir = target.distance(pos);
 //     Vec3 right = world_up.cross(dir);
 //     Vec3 up = dir.cross(right);
 // 	Vec3 pos_neg = pos * -1;
 
-//     Matrix4x4 res = M4_IDENTITY;
+//     Mat4 res = M4_IDENTITY;
 //     res.set_row_from_vec3(0, right);
 //     res.set_row_from_vec3(1, up);
 //     res.set_row_from_vec3(2, dir);
@@ -700,39 +705,8 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     return res;
 // }
 
-// // NOTE: article reference https://www.kdab.com/projection-matrices-with-vulkan-part-2/
-// fn Matrix4x4 m4_projection(float t, float b, float l, float r, float n, float f) {
-//     Matrix4x4 res;
-//     res.set_at(0, (2.0f * n) / (r - l));
-//     res.set_at(2, -((r + l) / (r - l)));
-//     res.set_at(5, (2.0f * n) / (b - t));
-//     res.set_at(6, -((b + t) / (b - t)));
-//     res.set_at(10, f / (f - n));
-//     res.set_at(11, -((n * f) / (f - n)));
-//     res.set_at(14, 1.0f);
-// 	res.set_at(15, 1.0f);
-//     return res;
-// }
-
-// fn Matrix4x4 m4_projection_fov(float fov, float aspect, float n, float f) {
-//     Matrix4x4 res;
-//     float fov_half = (float)math::deg_to_rad(fov / 2);
-//     float tan = (float)math::tan(fov_half);
-//     float b = tan * n;
-//     float r = b * aspect;
-
-//     res.set_at(0, n / r);
-//     res.set_at(5, n / b);
-//     res.set_at(10, f / (f - n));
-//     res.set_at(11, -((n * f) / (f - n)));
-//     res.set_at(14, 1.0f);
-// 	res.set_at(15, 1.0f);
-
-//     return res;
-// }
-
-// fn Matrix4x4 m4_ortho(float t, float b, float l, float r, float n, float f) {
-//     Matrix4x4 res;
+// fn Mat4 m4_ortho(float t, float b, float l, float r, float n, float f) {
+//     Mat4 res;
 //     res.set_at(0, 2.0f / (r - l));
 //     res.set_at(3, -((r + l) / (r - l)));
 //     res.set_at(5, 2.0f / (b - t));
@@ -743,67 +717,67 @@ fn void Mat4.n_inverse_inplace(&m) {
 //     return res;
 // }
 
-// fn float Matrix4x4.at(&self, uint ind) @inline {
+// fn float Mat4.at(&self, uint ind) @inline {
 // 	assert(ind < M4_LEN);
 // 	return self.data.single[ind];
 // }
 
-// fn float* Matrix4x4.at_ptr(&self, uint ind) @inline {
+// fn float* Mat4.at_ptr(&self, uint ind) @inline {
 // 	assert(ind < M4_LEN);
 // 	return &self.data.single[ind];
 // }
 
-// fn float Matrix4x4.at_rc(&self, uint row, uint col) @inline {
+// fn float Mat4.at_rc(&self, uint row, uint col) @inline {
 // 	assert(row < M4_ROWS);
 // 	assert(col < M4_COLS);
 // 	return self.data.rows[row][col];
 // }
 
-// fn float* Matrix4x4.at_rc_ptr(&self, uint row, uint col) @inline {
+// fn float* Mat4.at_rc_ptr(&self, uint row, uint col) @inline {
 // 	assert(row < M4_ROWS);
 // 	assert(col < M4_COLS);
 // 	return &self.data.rows[row][col];
 // }
 
-// fn void Matrix4x4.set_at(&self, uint ind, float val) @inline {
+// fn void Mat4.set_at(&self, uint ind, float val) @inline {
 // 	assert(ind < M4_LEN);
 // 	self.data.single[ind] = val;
 // }
 
-// fn void Matrix4x4.set_at_rc(&self, uint row, uint col, float val) @inline {
+// fn void Mat4.set_at_rc(&self, uint row, uint col, float val) @inline {
 // 	assert(row < M4_ROWS);
 // 	assert(col < M4_COLS);
 // 	self.data.rows[row][col] = val;
 // }
 
-// fn Vec4 Matrix4x4.get_row(&self, uint ind) @inline {
+// fn Vec4 Mat4.get_row(&self, uint ind) @inline {
 // 	assert(ind < M4_ROWS);
 // 	return self.data.rows[ind];
 // }
 
-// fn Vec3 Matrix4x4.get_row_as_vec3(&self, uint ind) @inline {
+// fn Vec3 Mat4.get_row_as_vec3(&self, uint ind) @inline {
 // 	assert(ind < M4_ROWS);
 // 	return self.data.rows[ind].xyz;
 // }
 
-// fn Vec4* Matrix4x4.get_row_ptr(&self, uint ind) @inline {
+// fn Vec4* Mat4.get_row_ptr(&self, uint ind) @inline {
 // 	assert(ind < M4_ROWS);
 // 	return &self.data.rows[ind];
 // }
 
-// fn void Matrix4x4.set_row(&self, uint ind, Vec4 new_row) @inline @private {
+// fn void Mat4.set_row(&self, uint ind, Vec4 new_row) @inline @private {
 // 	assert(ind < M4_ROWS);
 // 	self.data.rows[ind] = new_row;
 // }
 
-// fn void Matrix4x4.set_row_from_vec3(&self, uint ind, Vec3 new_row) @inline @private {
+// fn void Mat4.set_row_from_vec3(&self, uint ind, Vec3 new_row) @inline @private {
 // 	assert(ind < M4_ROWS);
 // 	for (uint i = 0; i < Vec3.len; ++i) {
 // 		self.data.rows[ind][i] = new_row[i];
 // 	}
 // }
 
-// fn Vec4 Matrix4x4.get_col(&self, uint ind) {
+// fn Vec4 Mat4.get_col(&self, uint ind) {
 // 	assert(ind < M4_COLS);
 
 // 	Vec4 col @noinit;
@@ -813,7 +787,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	return col;
 // }
 
-// fn void Matrix4x4.set_col(&self, uint ind, Vec4 new_col) @private {
+// fn void Mat4.set_col(&self, uint ind, Vec4 new_col) @private {
 // 	assert(ind < M4_COLS);
 
 // 	for (uint i = 0; i < M4_ROWS; ++i) {
@@ -821,14 +795,14 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	}
 // }
 
-// fn void Matrix4x4.set_col_from_vec3(&self, uint ind, Vec3 new_col) @inline {
+// fn void Mat4.set_col_from_vec3(&self, uint ind, Vec3 new_col) @inline {
 // 	assert(ind < M4_COLS);
 // 	for (uint i = 0; i < 3; ++i) {
 // 		self.data.rows[i][ind] = new_col[i];
 // 	}
 // }
 
-// fn Vec3 Matrix4x4.get_translation_vec(&self) {
+// fn Vec3 Mat4.get_translation_vec(&self) {
 // 	Vec3 res @noinit;
 // 	res[0] = self.data.single[3];
 // 	res[1] = self.data.single[7];
@@ -836,7 +810,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	return res;
 // }
 
-// fn Vec3 Matrix4x4.get_scaling_vec(&self) {
+// fn Vec3 Mat4.get_scaling_vec(&self) {
 // 	Vec3 res @noinit;
 // 	res[0] = self.data.single[0];
 // 	res[1] = self.data.single[4];
@@ -844,19 +818,19 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	return res;
 // }
 
-// fn void Matrix4x4.set_translation_vec(&self, Vec3 translation_vec) @private {
+// fn void Mat4.set_translation_vec(&self, Vec3 translation_vec) @private {
 // 	self.data.single[3] = translation_vec[0];
 // 	self.data.single[7] = translation_vec[1];
 // 	self.data.single[11] = translation_vec[2];
 // }
 
-// fn void Matrix4x4.set_scaling_vec(&self, Vec3 scaling_vec) @private {
+// fn void Mat4.set_scaling_vec(&self, Vec3 scaling_vec) @private {
 // 	self.data.single[0] = scaling_vec[0];
 // 	self.data.single[5] = scaling_vec[1];
 // 	self.data.single[10] = scaling_vec[2];
 // }
 
-// fn usz? Matrix4x4.to_format(&self, Formatter* formatter) @dynamic {
+// fn usz? Mat4.to_format(&self, Formatter* formatter) @dynamic {
 // 	usz n;
 // 	for (uint i = 0; i < M4_ROWS; ++i) {
 // 		n += formatter.printf("%s\n", self.data.rows[i])!;
@@ -864,7 +838,7 @@ fn void Mat4.n_inverse_inplace(&m) {
 // 	return n;
 // }
 
-// fn bool Matrix4x4.eq(&self, Matrix4x4* rhs) {
+// fn bool Mat4.eq(&self, Mat4* rhs) {
 // 	for (uint i = 0; i < M4_LEN; ++i) {
 // 		if (self.at(i) != rhs.at(i)) {
 // 			return false;

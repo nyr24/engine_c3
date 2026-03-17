@@ -31,7 +31,7 @@ struct FrameData
 	VulkanCmdBuffer 	      graphics_cmd_buff;
 	VulkanCmdBuffer 	      transfer_cmd_buff;
 	VulkanSemaphore			  image_avail_sem;
-	VulkanSemaphore			  resource_transfer_end_sem;
+	VulkanSemaphore			  transfer_end_sem;
 	VulkanSemaphore			  render_end_sem;
 // NOTE: PERF: 1 bool creates 7 bit padding in every instance
 // SOLUTION: store cmd_buff states (2 chars) + fence.is_signaled here, at the end
@@ -63,9 +63,8 @@ fn void? init_vk(App* app_ctx, AppConfig* app_config, Window* window)
 	init_frame_data(ctx);
 
 	VkExtent2D extent = { app_config.init_width, app_config.init_height };
-	init_swapchain(ctx, extent)!;
-
-	ctx.renderer.init(ctx, extent, engine::COLOR_BLACK_RGBA);
+	ctx.swapchain.init(ctx, extent)!;
+	ctx.renderer.init(ctx, extent, engine::COLOR_DARK_BLUE_RGBA);
 	create_main_shader(ctx);
 }
 
@@ -90,8 +89,8 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	const MAIN_SHADER_MAX_ENTITY_CNT = 1024u;
 	const MAIN_SHADER_NAME = "shader_main.spv";
 
-	VkDescriptorSetLayoutBinding[1] descriptor_bindings;
-	VkDescriptorType[1] global_descriptor_types = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
+	// VkDescriptorSetLayoutBinding[1] descriptor_bindings;
+	// VkDescriptorType[1] global_descriptor_types = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
 	// VkDescriptorType[*] local_descriptor_types = {
 		// VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -104,11 +103,11 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	// descriptor_bindings[1].resize(local_descriptor_types.len);
 
 	// global ubo
-	create_descriptor_bindings(
-		VK_SHADER_STAGE_VERTEX_BIT,
-		global_descriptor_types[..],
-		descriptor_bindings[..],
-	);
+	// create_descriptor_bindings(
+	// 	VK_SHADER_STAGE_VERTEX_BIT,
+	// 	global_descriptor_types[..],
+	// 	descriptor_bindings[..],
+	// );
 
 	// local ubo
 	// create_descriptor_bindings(
@@ -117,7 +116,7 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	// 	descriptor_bindings[1].array_view(),
 	// );
 
-	VkDescriptorSetLayoutBinding[][1] shader_bindings = { descriptor_bindings[..] };
+	// VkDescriptorSetLayoutBinding[][1] shader_bindings = { descriptor_bindings[..] };
 
 	// attrib descriptions
     VkVertexInputAttributeDescription[MAIN_SHADER_ATTRIB_CNT] attrib_descriptions;
@@ -158,7 +157,7 @@ fn void create_main_shader(VulkanContext* ctx) @local
 
 	VulkanShaderConfig shader_conf = {
 		.stage_bits = VulkanShaderStageKind.VERTEX | VulkanShaderStageKind.FRAGMENT,
-		.descriptor_bindings = shader_bindings[..],
+		.descriptor_bindings = {},
 		.attrib_descriptions = attrib_descriptions[..],
 		.pipeline_configs = pipeline_configs[..],
 		.push_constant_ranges = push_constant_ranges[..],
@@ -207,7 +206,7 @@ fn void init_frame_data(VulkanContext* ctx) @local
 
 	foreach (&data : ctx.frame_data) {
 		data.image_avail_sem.init(ctx);
-		data.resource_transfer_end_sem.init(ctx);
+		data.transfer_end_sem.init(ctx);
 		data.render_end_sem.init(ctx);
 		data.render_end_fence.init(ctx);
 	}
@@ -244,7 +243,7 @@ fn void destroy_frame_data(VulkanContext* ctx) @local
 		data.transfer_cmd_buff.state = NOT_ALLOCATED;
 		data.image_avail_sem.destroy(ctx);
 		data.render_end_sem.destroy(ctx);
-		data.resource_transfer_end_sem.destroy(ctx);
+		data.transfer_end_sem.destroy(ctx);
 		data.render_end_fence.destroy(ctx);
 	}
 }
@@ -258,4 +257,11 @@ fn void VulkanContext.destroy(&ctx)
 	ctx.swapchain.destroy(ctx);
 	ctx.dev.destroy(ctx);
 	vkDestroyInstance(ctx.instance, ctx.vk_alloc);
+}
+
+// Utility
+
+fn bool VkExtent2D.eq(VkExtent2D first, VkExtent2D second) @operator(==)
+{
+	return first.width == second.width && first.height == second.height;
 }
