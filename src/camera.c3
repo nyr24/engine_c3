@@ -10,17 +10,17 @@ const float CAMERA_ZOOM_MAX = 300.0f;
 
 struct Camera
 {
-
-    Vec3	    pos;
-    Vec3	    target;
-    Vec3	    right;
-    Vec3	    up;
-    float   	yaw;
-    float   	pitch;
-    float   	speed;
-    float   	zoom;
+	Vec3 pos;
+	Vec3 target;
+	Vec3 right;
+	Vec3 up;
+	float yaw;
+	float pitch;
+	float speed;
+// TODO: make in radians
+	float zoom;
 	MouseSensivity mouse_sensivity;
-    bool    	dirty;
+	bool dirty;
 }
 
 constdef MouseSensivity : inline float
@@ -31,13 +31,18 @@ constdef MouseSensivity : inline float
 	SUPER_FAST = 0.0025f,
 }
 
-fn void Camera.init(&cam, Vec3 pos, float speed = DEFAULT_CAMERA_SPEED, float zoom = 45.0f)
+fn void Camera.init(
+	&cam,
+	Vec3 pos,
+	Vec3 target,
+	float speed = DEFAULT_CAMERA_SPEED,
+	float zoom = 45.0f
+)
 {
 	cam.pos = pos;
-	cam.target = V3_FAR;
+	cam.target = target;
 	cam.right = V3_RIGHT;
 	cam.up = V3_TOP;
-	// cam.yaw = -90.0f;
 	cam.yaw = math::deg_to_rad(-90.0f);
 	cam.pitch = 0;
 	cam.speed = speed;
@@ -53,8 +58,12 @@ fn Mat4 Camera.look_at(&cam)
 
 fn void Camera.handle_mouse_move(&cam, float delta_x, float delta_y)
 {
-    cam.yaw += delta_x * cam.mouse_sensivity;
-    cam.pitch = math::clamp(cam.pitch + delta_y * cam.mouse_sensivity, math::deg_to_rad(-89.0f), math::deg_to_rad(89.0f));
+	cam.yaw += delta_x * cam.mouse_sensivity;
+	cam.pitch = math::clamp(
+		cam.pitch + delta_y * cam.mouse_sensivity,
+		math::deg_to_rad(-89.0f),
+		math::deg_to_rad(89.0f)
+	);
 	cam.recalc_state(delta_x, delta_y);
 	cam.dirty = true;
 }
@@ -63,12 +72,18 @@ fn void Camera.handle_key_down(&cam, uint key, double frame_delta_time_sec)
 {
 	float velocity = cam.speed * (float)frame_delta_time_sec;
 
-	switch (key) {
-		case glfw::KEY_W: cam.pos += cam.target * velocity;
-		case glfw::KEY_S: cam.pos -= cam.target * velocity;
-		case glfw::KEY_D: cam.pos += cam.right  * velocity;
-		case glfw::KEY_A: cam.pos -= cam.right  * velocity;
-		default: return;
+	switch (key)
+	{
+		case glfw::KEY_W:
+			cam.pos += cam.target * velocity;
+		case glfw::KEY_S:
+			cam.pos -= cam.target * velocity;
+		case glfw::KEY_D:
+			cam.pos += cam.right * velocity;
+		case glfw::KEY_A:
+			cam.pos -= cam.right * velocity;
+		default:
+			return;
 	}
 	cam.dirty = true;
 }
@@ -78,9 +93,12 @@ fn void Camera.handle_key_down(&cam, uint key, double frame_delta_time_sec)
 // which matrix updates are triggerred by camera updates (view, proj, both)
 fn void Camera.handle_mouse_wheel(&cam, bool delta)
 {
-	if (delta) {
+	if (delta)
+	{
 		cam.zoom += CAMERA_ZOOM_SPEED;
-	} else {
+	}
+	else
+	{
 		cam.zoom -= CAMERA_ZOOM_SPEED;
 	}
 	cam.zoom = math::clamp(cam.zoom, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX);
@@ -89,10 +107,10 @@ fn void Camera.handle_mouse_wheel(&cam, bool delta)
 
 fn void Camera.recalc_state(&cam, float delta_x, float delta_y)
 {
-    cam.target.x = math::cos(cam.yaw) * math::cos(cam.pitch);
-    cam.target.y = math::sin(cam.pitch);
-    cam.target.z = math::sin(cam.yaw) * math::cos(cam.pitch);
-    cam.target   = cam.target.normalize();
-    cam.right    = cam.target.cross(V3_TOP).normalize();
-    cam.up       = cam.right.cross(cam.target).normalize();
+	cam.target.x = math::cos(cam.yaw) * math::cos(cam.pitch);
+	cam.target.y = math::sin(cam.pitch);
+	cam.target.z = math::sin(cam.yaw) * math::cos(cam.pitch);
+	cam.target = cam.target.normalize();
+	cam.right = cam.target.cross(V3_TOP).normalize();
+	cam.up = cam.right.cross(cam.target).normalize();
 }

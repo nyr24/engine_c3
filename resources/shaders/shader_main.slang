@@ -2,12 +2,14 @@ struct VSInput {
     float3 pos;
     float3 normal;
     float2 texture_coord;
+    float3 color;
 }
 
 struct VSOutput {
     float4 pos: SV_Position;
     float3 normal;
     float2 texture_coord;
+    float3 color;
 };
 
 // struct GlobalUniformObject {
@@ -45,8 +47,8 @@ struct PushConstantBlock {
 // [[vk::binding(4, 1)]]
 // Sampler2D normal;
 
-[[vk::push_constant]]
-ConstantBuffer<PushConstantBlock> push_constant; // model mat
+[[vk::push_constant]] // mvp mat
+ConstantBuffer<PushConstantBlock> push_constant;
 
 // NOTE: TEMP
 [shader("vertex")]
@@ -56,6 +58,7 @@ VSOutput vertMain(VSInput input)
     output.pos = mul(push_constant.mvp, float4(input.pos, 1.0));
     output.texture_coord = input.texture_coord;
     output.normal = input.normal;
+    output.color = input.color;
     return output;
 }
 
@@ -68,5 +71,6 @@ float4 fragMain(VSOutput input) : SV_Target
     // float4 ambient_sample = ambient.Sample(input.texture_coord);
     // float4 normal_sample = normal.Sample(input.texture_coord);
     // return lerp(lerp(lerp(diffuse_sample, specular_sample, 0.2), ambient_sample, 0.2), normal_sample, 0.2);
-    return float4(0.0, 1.0, 0.0, 1.0);
+    // return float4(0.0, 1.0, 0.0, 1.0);
+    return float4(input.color, 1.0);
 }

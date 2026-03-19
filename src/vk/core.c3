@@ -35,6 +35,7 @@ struct FrameData
 	VulkanSemaphore			  render_end_sem;
 // NOTE: PERF: 1 bool creates 7 bit padding in every instance
 // SOLUTION: store cmd_buff states (2 chars) + fence.is_signaled here, at the end
+// (BUT): we only have two of them...
 	VulkanFence    			  render_end_fence;
 }
 
@@ -85,8 +86,7 @@ fn void VulkanContext.advance_frame(&ctx)
 
 fn void create_main_shader(VulkanContext* ctx) @local
 {
-	const MAIN_SHADER_ATTRIB_CNT = 3u;
-	const MAIN_SHADER_MAX_ENTITY_CNT = 1024u;
+	const MAIN_SHADER_MAX_ENTITY_CNT = 1024;
 	const MAIN_SHADER_NAME = "shader_main.spv";
 
 	// VkDescriptorSetLayoutBinding[1] descriptor_bindings;
@@ -119,23 +119,36 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	// VkDescriptorSetLayoutBinding[][1] shader_bindings = { descriptor_bindings[..] };
 
 	// attrib descriptions
-    VkVertexInputAttributeDescription[MAIN_SHADER_ATTRIB_CNT] attrib_descriptions;
-	
-    // Position
-    attrib_descriptions[0].binding = 0;
-    attrib_descriptions[0].location = 0;
-    attrib_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attrib_descriptions[0].offset = 0;
-    // Normal
-    attrib_descriptions[1].binding = 0;
-    attrib_descriptions[1].location = 1;
-    attrib_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attrib_descriptions[1].offset = Vec3.sizeof;
-    // Texture sampler
-    attrib_descriptions[2].binding = 0;
-    attrib_descriptions[2].location = 2;
-    attrib_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-    attrib_descriptions[2].offset = Vec3.sizeof * 2;
+    VkVertexInputAttributeDescription[*] attrib_descriptions = {
+	    // Position
+		{
+		    .binding = 0,
+		    .location = 0,
+		    .format = VK_FORMAT_R32G32B32_SFLOAT,
+		    .offset = 0,
+		},
+	    // Normal
+		{
+		    .binding = 0,
+		    .location = 1,
+		    .format = VK_FORMAT_R32G32B32_SFLOAT,
+		    .offset = Vec3.sizeof * 1,
+		},
+	    // Texture sampler
+	    {
+		    .binding = 0,
+		    .location = 2,
+		    .format = VK_FORMAT_R32G32_SFLOAT,
+		    .offset = Vec3.sizeof * 2,
+		},
+		// NOTE: TEMP (color)
+		{
+		    .binding = 0,
+		    .location = 3,
+		    .format = VK_FORMAT_R32G32B32_SFLOAT,
+		    .offset = Vec3.sizeof * 2 + Vec2.sizeof,
+		}
+	};
 
     VkPushConstantRange[1] push_constant_ranges = {
 		{
@@ -150,7 +163,7 @@ fn void create_main_shader(VulkanContext* ctx) @local
 			.primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 			.polygon_mode = VK_POLYGON_MODE_FILL,
 			.line_width = 1.0f,
-			.sample_count = VK_SAMPLE_COUNT_1_BIT ,
+			.sample_count = VK_SAMPLE_COUNT_1_BIT,
 			.enable_color_blend = true,
 		}
 	};

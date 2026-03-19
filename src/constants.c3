@@ -11,9 +11,9 @@ const ColorRGB COLOR_BLACK_RGB  = {0.0f, 0.0f, 0.0f};
 const ColorRGB COLOR_RED_RGB    = {1.0f, 0.0f, 0.0f};
 const ColorRGB COLOR_GREEN_RGB  = {0.0f, 1.0f, 0.0f};
 const ColorRGB COLOR_BLUE_RGB   = {0.0f, 0.0f, 1.0f};
-const ColorRGB COLOR_ORANGE_RGB = {0.0f, 0.5f, 0.1f};
+const ColorRGB COLOR_ORANGE_RGB = {0.7f, 0.3f, 0.0f};
 const ColorRGB COLOR_PURPLE_RGB = {0.5f, 0.0f, 0.5f};
-const ColorRGB COLOR_YELLOW_RGB = {0.0f, 1.0f, 0.0f};
+const ColorRGB COLOR_YELLOW_RGB = {0.5f, 0.5f, 0.0f};
 
 const ColorRGBA COLOR_WHITE_RGBA      = {1.0f, 1.0f, 1.0f, 1.0f};
 const ColorRGBA COLOR_BLACK_RGBA      = {0.0f, 0.0f, 0.0f, 1.0f};
