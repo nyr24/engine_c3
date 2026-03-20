@@ -1,6 +1,6 @@
-module vk;
+module engine::vk;
 
-import engine;
+import vk;
 import logger;
 import std::collections::elastic_array;
 import std::io;
@@ -101,16 +101,16 @@ fn VulkanShader create_shader(VulkanContext* ctx, String file_name, VulkanShader
 	shader.create_descriptor_state(ctx, config);
 
     VkPipelineLayoutCreateInfo pipeline_layouts_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .set_layout_count = (uint)shader.descriptor_layouts.size,
-        .p_set_layouts = (VkDescriptorSetLayout*)shader.descriptor_layouts.data(),
-        .push_constant_range_count = (uint)config.push_constant_ranges.len,
-        .p_push_constant_ranges = config.push_constant_ranges.ptr,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = (uint)shader.descriptor_layouts.size,
+        .pSetLayouts = (VkDescriptorSetLayout*)shader.descriptor_layouts.data(),
+        .pushConstantRangeCount = (uint)config.push_constant_ranges.len,
+        .pPushConstantRanges = config.push_constant_ranges.ptr,
     };
 
 	// will be shared across all pipelines for this shader 
 	VkPipelineLayout pipeline_layout;
-    vk_check(vkCreatePipelineLayout(ctx.dev.log_dev, &pipeline_layouts_ci, ctx.vk_alloc, &pipeline_layout));
+    vk_check(vk::createPipelineLayout(ctx.dev.log_dev, &pipeline_layouts_ci, ctx.vk_alloc, &pipeline_layout));
 
 	shader.pipelines.resize(config.pipeline_configs.len);
 
@@ -140,88 +140,88 @@ fn void VulkanShader.create_pipeline(
 	VulkanPipeline* out_pipeline,
 )
 {
-    VkDynamicState[2] dynamic_states = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkDynamicState[2] dynamic_states = { vk::DYNAMIC_STATE_VIEWPORT, vk::DYNAMIC_STATE_SCISSOR };
 
     VkPipelineDynamicStateCreateInfo dynamic_state = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamic_state_count = (uint)dynamic_states.len,
-        .p_dynamic_states = &dynamic_states,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = (uint)dynamic_states.len,
+        .pDynamicStates = &dynamic_states,
     };
 
     VkVertexInputBindingDescription binding_descr = get_binding_descr(vertex_bind_ind);
 
     VkPipelineVertexInputStateCreateInfo vertex_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertex_binding_description_count = 1,
-        .p_vertex_binding_descriptions = &binding_descr,
-        .vertex_attribute_description_count = (uint)attrib_descriptions.len,
-        .p_vertex_attribute_descriptions = attrib_descriptions.ptr,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &binding_descr,
+        .vertexAttributeDescriptionCount = (uint)attrib_descriptions.len,
+        .pVertexAttributeDescriptions = attrib_descriptions.ptr,
     };
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .topology = config.primitive_topology,
     };
 
     VkPipelineViewportStateCreateInfo viewport_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewport_count = 1,
-        .p_viewports = &ctx.renderer.viewport,
-        .scissor_count = 1,
-        .p_scissors = &ctx.renderer.scissors
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports = &ctx.renderer.viewport,
+        .scissorCount = 1,
+        .pScissors = &ctx.renderer.scissors
     };
 
     VkPipelineRasterizationStateCreateInfo rasterization_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depth_clamp_enable = VK_FALSE,
-        .rasterizer_discard_enable = VK_FALSE,
-        .polygon_mode = config.polygon_mode,
-        .cull_mode = VK_CULL_MODE_BACK_BIT,
-        .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depth_bias_enable = VK_FALSE,
-        .line_width = config.line_width,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = vk::FALSE,
+        .rasterizerDiscardEnable = vk::FALSE,
+        .polygonMode = config.polygon_mode,
+        .cullMode = vk::CULL_MODE_BACK_BIT,
+        .frontFace = vk::FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = vk::FALSE,
+        .lineWidth = config.line_width,
     };
 
     VkPipelineMultisampleStateCreateInfo multisample_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterization_samples = config.sample_count,
-        .sample_shading_enable = VK_FALSE,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = config.sample_count,
+        .sampleShadingEnable = vk::FALSE,
     };
 
     VkPipelineColorBlendAttachmentState color_blending_attachment = {
-        .blend_enable = (VkBool32)config.enable_color_blend,
-        .src_color_blend_factor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dst_color_blend_factor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .color_blend_op = VK_BLEND_OP_ADD,
-        .src_alpha_blend_factor = VK_BLEND_FACTOR_ONE,
-        .dst_alpha_blend_factor = VK_BLEND_FACTOR_ZERO,
-        .alpha_blend_op = VK_BLEND_OP_ADD,
-        .color_write_mask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable = (VkBool32)config.enable_color_blend,
+        .srcColorBlendFactor = vk::BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = vk::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = vk::BLEND_OP_ADD,
+        .srcAlphaBlendFactor = vk::BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = vk::BLEND_FACTOR_ZERO,
+        .alphaBlendOp = vk::BLEND_OP_ADD,
+        .colorWriteMask = vk::COLOR_COMPONENT_R_BIT | vk::COLOR_COMPONENT_G_BIT | vk::COLOR_COMPONENT_B_BIT | vk::COLOR_COMPONENT_A_BIT,
     };
 
     VkPipelineColorBlendStateCreateInfo color_blending_state = {
-        .logic_op_enable = VK_FALSE,
-        .logic_op = VK_LOGIC_OP_COPY,
-        .attachment_count = 1,
-        .p_attachments = &color_blending_attachment,
+        .logicOpEnable = vk::FALSE,
+        .logicOp = vk::LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments = &color_blending_attachment,
     };
 
     VkPipelineRenderingCreateInfo rendering_ci = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .color_attachment_count = 1,
-        .p_color_attachment_formats = &ctx.swapchain.surface_fmt.format,
-        .depth_attachment_format = ctx.dev.depth_fmt,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &ctx.swapchain.surface_fmt.format,
+        .depthAttachmentFormat = ctx.dev.depth_fmt,
     };
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
-        .s_type = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .p_next = null,
-        .depth_test_enable = VK_TRUE,
-        .depth_write_enable = VK_TRUE,
+        .sType = vk::STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pNext = null,
+        .depthTestEnable = vk::TRUE,
+        .depthWriteEnable = vk::TRUE,
         // lower depth => write pixel
-        .depth_compare_op = VK_COMPARE_OP_LESS,
-        .depth_bounds_test_enable = VK_FALSE,
-        .stencil_test_enable = VK_FALSE,
+        .depthCompareOp = vk::COMPARE_OP_LESS,
+        .depthBoundsTestEnable = vk::FALSE,
+        .stencilTestEnable = vk::FALSE,
     };
 
 	ElasticArray{VkPipelineShaderStageCreateInfo, VulkanShaderStageKind.len} shader_stages;
@@ -229,25 +229,25 @@ fn void VulkanShader.create_pipeline(
 	shader.mod.get_shader_stage_infos(shader_stages.array_view());
 
     VkGraphicsPipelineCreateInfo pipeline_ci = {
-        .s_type = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .p_next = &rendering_ci,
-        .stage_count = (uint)shader_stages.size,
-        .p_stages = shader_stages.data(),
-        .p_vertex_input_state = &vertex_ci,
-        .p_input_assembly_state = &input_assembly_ci,
-        .p_viewport_state = &viewport_ci,
-        .p_rasterization_state = &rasterization_ci,
-        .p_multisample_state = &multisample_ci,
-        .p_depth_stencil_state = &depth_stencil_state,
-        .p_color_blend_state = &color_blending_state,
-        .p_dynamic_state = &dynamic_state,
+        .sType = vk::STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &rendering_ci,
+        .stageCount = (uint)shader_stages.size,
+        .pStages = shader_stages.data(),
+        .pVertexInputState = &vertex_ci,
+        .pInputAssemblyState = &input_assembly_ci,
+        .pViewportState = &viewport_ci,
+        .pRasterizationState = &rasterization_ci,
+        .pMultisampleState = &multisample_ci,
+        .pDepthStencilState = &depth_stencil_state,
+        .pColorBlendState = &color_blending_state,
+        .pDynamicState = &dynamic_state,
         .layout = out_pipeline.layout,
-        .render_pass = null,
-        .base_pipeline_handle = VK_NULL_HANDLE,
-        .base_pipeline_index = -1,
+        .renderPass = null,
+        .basePipelineHandle = (VkPipeline)null,
+        .basePipelineIndex = -1,
     };
 
-    vk_check(vkCreateGraphicsPipelines(ctx.dev.log_dev, null, 1, &pipeline_ci, ctx.vk_alloc, &out_pipeline.handle));
+    vk_check(vk::createGraphicsPipelines(ctx.dev.log_dev, null, 1, &pipeline_ci, ctx.vk_alloc, &out_pipeline.handle));
     logger::logn(INFO, "Graphics pipeline was successfully created!");
 }
 
@@ -278,12 +278,12 @@ fn void VulkanPipeline.bind(
 	VulkanCmdBuffer graphics_cmd_buffer,
 )
 {
-    vkCmdBindPipeline(graphics_cmd_buffer.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+    vk::cmdBindPipeline(graphics_cmd_buffer.handle, vk::PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
 }
 
 fn void VulkanPipeline.bind_descriptor_sets(&pipeline, VulkanCmdBuffer cmd_buff, VkPipelineBindPoint bind_point, VkDescriptorSet[] descriptor_sets, uint start_index = 0)
 {
-    vkCmdBindDescriptorSets(cmd_buff.handle, bind_point, pipeline.layout, start_index, descriptor_sets.len, descriptor_sets.ptr, 0, null);
+    vk::cmdBindDescriptorSets(cmd_buff.handle, bind_point, pipeline.layout, start_index, descriptor_sets.len, descriptor_sets.ptr, 0, null);
 }
 
 fn void VulkanShader.create_descriptor_state(&shader, VulkanContext* ctx, VulkanShaderConfig* conf)
@@ -295,8 +295,8 @@ fn void VulkanShader.create_descriptor_state(&shader, VulkanContext* ctx, Vulkan
 	    ElasticArray{VkDescriptorPoolSize, MAX_DESCRIPTOR_POOL_CNT} pool_sizes;
 
 		foreach (&binding : bindings) {
-			descriptor_types.push(binding.descriptor_type);
-	        pool_sizes.push({ .type = binding.descriptor_type, .descriptor_count = entity_count });
+			descriptor_types.push(binding.descriptorType);
+	        pool_sizes.push({ .type = binding.descriptorType, .descriptorCount = entity_count });
 		}
 
 	    shader.descriptor_pools.push(create_descriptor_pool(ctx, pool_sizes.array_view(), entity_count));
@@ -309,7 +309,7 @@ fn VkVertexInputBindingDescription get_binding_descr(char binding_index)
     return {
         .binding = (uint)binding_index,
         .stride = Vertex.sizeof,
-        .input_rate = VK_VERTEX_INPUT_RATE_VERTEX,
+        .inputRate = vk::VERTEX_INPUT_RATE_VERTEX,
     };
 }
 
@@ -333,15 +333,15 @@ fn VulkanShaderModule? create_shader_module(
 	}
 	
     VkShaderModuleCreateInfo create_info = {
-        .s_type = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .code_size = file_contents.len,
-        .p_code = (uint*)file_contents.ptr,
+        .sType = vk::STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = file_contents.len,
+        .pCode = (uint*)file_contents.ptr,
     };
 
     VulkanShaderModule shader_module;
 	shader_module.init_shader_stages(stage_bits);
 
-    vk_check(vkCreateShaderModule(ctx.dev.log_dev, &create_info, ctx.vk_alloc, &shader_module.handle));
+    vk_check(vk::createShaderModule(ctx.dev.log_dev, &create_info, ctx.vk_alloc, &shader_module.handle));
     return shader_module;
 }
 
@@ -374,9 +374,9 @@ fn void VulkanShaderModule.get_shader_stage_infos(&mod, VkPipelineShaderStageCre
 {
 	foreach (uint i, stage : mod.stages) {
 		VkPipelineShaderStageCreateInfo stage_ci;
-		stage_ci.s_type = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		stage_ci.sType = vk::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stage_ci.stage = map_shader_stage_to_vk_stage(stage.kind);
-		stage_ci.p_name = stage.entry_name;
+		stage_ci.pName = stage.entry_name;
 		stage_ci.mod = mod.handle;
 		out_stages[i] = stage_ci;
 	}
@@ -385,12 +385,12 @@ fn void VulkanShaderModule.get_shader_stage_infos(&mod, VkPipelineShaderStageCre
 fn VkShaderStageFlagBits map_shader_stage_to_vk_stage(VulkanShaderStageKind stage) @private
 {
 	switch (stage) {
-		case VulkanShaderStageKind.VERTEX: return VK_SHADER_STAGE_VERTEX_BIT;
-		case VulkanShaderStageKind.FRAGMENT: return  VK_SHADER_STAGE_FRAGMENT_BIT;
-		case VulkanShaderStageKind.COMPUTE: return  VK_SHADER_STAGE_COMPUTE_BIT;
-		case VulkanShaderStageKind.GEOMETRY: return  VK_SHADER_STAGE_GEOMETRY_BIT;
-		case VulkanShaderStageKind.TESSELATION_CONTROL: return  VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-		case VulkanShaderStageKind.TESSELATION_EVAL: return  VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+		case VulkanShaderStageKind.VERTEX: return vk::SHADER_STAGE_VERTEX_BIT;
+		case VulkanShaderStageKind.FRAGMENT: return  vk::SHADER_STAGE_FRAGMENT_BIT;
+		case VulkanShaderStageKind.COMPUTE: return  vk::SHADER_STAGE_COMPUTE_BIT;
+		case VulkanShaderStageKind.GEOMETRY: return  vk::SHADER_STAGE_GEOMETRY_BIT;
+		case VulkanShaderStageKind.TESSELATION_CONTROL: return  vk::SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+		case VulkanShaderStageKind.TESSELATION_EVAL: return  vk::SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 		default: unreachable();
 	}
 }
@@ -407,12 +407,12 @@ fn VulkanDescriptorPool create_descriptor_pool(VulkanContext* ctx, VkDescriptorP
 fn void VulkanDescriptorPool.init(&pool, VulkanContext* ctx, VkDescriptorPoolSize[] pool_sizes, uint max_sets)
 {
     VkDescriptorPoolCreateInfo descriptor_pool_ci = {
-        .s_type = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .max_sets = max_sets,
-        .pool_size_count = (uint)pool_sizes.len,
-        .p_pool_sizes = pool_sizes.ptr,
+        .sType = vk::STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets = max_sets,
+        .poolSizeCount = (uint)pool_sizes.len,
+        .pPoolSizes = pool_sizes.ptr,
     };
-    vk_check(vkCreateDescriptorPool(ctx.dev.log_dev, &descriptor_pool_ci, ctx.vk_alloc, &pool.handle)); 
+    vk_check(vk::createDescriptorPool(ctx.dev.log_dev, &descriptor_pool_ci, ctx.vk_alloc, &pool.handle)); 
 }
 
 <*
@@ -421,13 +421,13 @@ fn void VulkanDescriptorPool.init(&pool, VulkanContext* ctx, VkDescriptorPoolSiz
 fn void VulkanDescriptorPool.allocate_sets(&pool, VulkanDevice* dev, VulkanDescriptorSetLayout[] layouts, VkDescriptorSet[] sets)
 {
     VkDescriptorSetAllocateInfo alloc_info = {
-        .s_type = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptor_pool = pool.handle,
-        .descriptor_set_count = layouts.len,
-        .p_set_layouts = (VkDescriptorSetLayout*)layouts.ptr,
+        .sType = vk::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = pool.handle,
+        .descriptorSetCount = layouts.len,
+        .pSetLayouts = (VkDescriptorSetLayout*)layouts.ptr,
     };
 
-    vk_check(vkAllocateDescriptorSets(dev.log_dev, &alloc_info, sets.ptr));
+    vk_check(vk::allocateDescriptorSets(dev.log_dev, &alloc_info, sets.ptr));
 }
 
 // VulkanDescriptorSetLayout
@@ -442,11 +442,11 @@ fn VulkanDescriptorSetLayout create_descriptor_set_layout(VulkanContext* ctx, Vk
 fn void VulkanDescriptorSetLayout.init(&layout, VulkanContext* ctx, VkDescriptorSetLayoutBinding[] bindings)
 {
     VkDescriptorSetLayoutCreateInfo layout_ci = {
-        .s_type = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .binding_count = bindings.len,
-        .p_bindings = bindings.ptr,
+        .sType = vk::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = bindings.len,
+        .pBindings = bindings.ptr,
     };
-    vk_check(vkCreateDescriptorSetLayout(ctx.dev.log_dev, &layout_ci, ctx.vk_alloc, &layout.handle));
+    vk_check(vk::createDescriptorSetLayout(ctx.dev.log_dev, &layout_ci, ctx.vk_alloc, &layout.handle));
 }
 
 <*
@@ -456,10 +456,10 @@ fn void create_descriptor_bindings(VkShaderStageFlags stage_flags, VkDescriptorT
 {
     foreach (uint i, &binding : out_bindings) {
         binding.binding = i;
-        binding.descriptor_type = descriptor_types[i];
-        binding.descriptor_count = 1u;
-        binding.stage_flags = stage_flags;
-        binding.p_immutable_samplers = null;
+        binding.descriptorType = descriptor_types[i];
+        binding.descriptorCount = 1u;
+        binding.stageFlags = stage_flags;
+        binding.pImmutableSamplers = null;
     }
 }
 
@@ -482,7 +482,7 @@ fn void VulkanShader.destroy(&shader, VulkanContext* ctx)
 fn void VulkanPipeline.destroy(&pipe, VulkanContext* ctx)
 {
 	if (pipe.handle) {
-	    vkDestroyPipeline(ctx.dev.log_dev, pipe.handle, ctx.vk_alloc);
+	    vk::destroyPipeline(ctx.dev.log_dev, pipe.handle, ctx.vk_alloc);
 		pipe.handle = null;
 	}
 }
@@ -490,7 +490,7 @@ fn void VulkanPipeline.destroy(&pipe, VulkanContext* ctx)
 fn void VulkanShaderModule.destroy(&mod, VulkanContext* ctx)
 {
 	if (mod.handle) {
-	    vkDestroyShaderModule(ctx.dev.log_dev, mod.handle, ctx.vk_alloc);
+	    vk::destroyShaderModule(ctx.dev.log_dev, mod.handle, ctx.vk_alloc);
 		mod.handle = null;
 	}
 }
@@ -498,7 +498,7 @@ fn void VulkanShaderModule.destroy(&mod, VulkanContext* ctx)
 fn void VulkanDescriptorSetLayout.destroy(&layout, VulkanContext* ctx)
 {
     if (layout.handle) {
-        vkDestroyDescriptorSetLayout(ctx.dev.log_dev, layout.handle, ctx.vk_alloc);
+        vk::destroyDescriptorSetLayout(ctx.dev.log_dev, layout.handle, ctx.vk_alloc);
         layout.handle = null;
     }
 }
@@ -506,7 +506,7 @@ fn void VulkanDescriptorSetLayout.destroy(&layout, VulkanContext* ctx)
 fn void VulkanDescriptorPool.destroy(&pool, VulkanContext* ctx)
 {
     if (pool.handle) {
-        vkDestroyDescriptorPool(ctx.dev.log_dev, pool.handle, ctx.vk_alloc);
+        vk::destroyDescriptorPool(ctx.dev.log_dev, pool.handle, ctx.vk_alloc);
         pool.handle = null;
     }
 }

@@ -1,5 +1,6 @@
-module vk;
+module engine::vk;
 
+import vk;
 import std::collections::elastic_array;
 import std::collections::maybe;
 import std::math;
@@ -56,11 +57,11 @@ fn SwapchainPresentRes VulkanSwapchain.acquire_next_image_index(
 )
 {
 	uint image_index @noinit;
-	VkResult result = VK_NOT_READY;
+	VkResult result = vk::NOT_READY;
 
 	do
 	{
-		result = vkAcquireNextImageKHR(
+		result = vk::acquireNextImageKHR(
 			ctx.dev.log_dev,
 			swapchain.handle,
 			timeout_ns,
@@ -68,15 +69,15 @@ fn SwapchainPresentRes VulkanSwapchain.acquire_next_image_index(
 			null,
 			&image_index
 		);
-	} while (result == VK_NOT_READY);
+	} while (result == vk::NOT_READY);
 
 	swapchain.curr_image_index = image_index;
 
 	switch (result)
 	{
-		case VK_SUCCESS:
+		case vk::SUCCESS:
 			return SUCCESS;
-		case VK_SUBOPTIMAL_KHR:
+		case vk::SUBOPTIMAL_KHR:
 			VkExtent2D new_coords @noinit;
 			ctx.app_ctx.window.get_screen_coordinates(&new_coords);
 			VkExtent2D curr_coords = ctx.renderer.get_extent();
@@ -88,7 +89,7 @@ fn SwapchainPresentRes VulkanSwapchain.acquire_next_image_index(
 				return NEEDS_RECREATION;
 			}
 			return SUCCESS;
-		case VK_ERROR_OUT_OF_DATE_KHR:
+		case vk::ERROR_OUT_OF_DATE_KHR:
 			logger::logn(WARN, "Swapchain is outdated, can't proceed next frame, scheduling recreation...");
 			swapchain.recreation_scheduled = true;
 			return NEEDS_RECREATION_CANT_PROCEED;
@@ -106,21 +107,21 @@ fn SwapchainPresentRes VulkanSwapchain.present(
 )
 {
 	VkPresentInfoKHR present_info = {
-		.s_type = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.wait_semaphore_count = 1u,
-		.p_wait_semaphores = &render_complete_semaphore,
-		.swapchain_count = 1u,
-		.p_swapchains = &swapchain.handle,
-		.p_image_indices = &swapchain.curr_image_index,
-		.p_results = null,
+		.sType = vk::STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.waitSemaphoreCount = 1u,
+		.pWaitSemaphores = &render_complete_semaphore,
+		.swapchainCount = 1u,
+		.pSwapchains = &swapchain.handle,
+		.pImageIndices = &swapchain.curr_image_index,
+		.pResults = null,
 	};
 
-	VkResult result = vkQueuePresentKHR(present_queue, &present_info);
+	VkResult result = vk::queuePresentKHR(present_queue, &present_info);
 	switch (result)
 	{
-		case VK_SUCCESS:
+		case vk::SUCCESS:
 			return SUCCESS;
-		case VK_SUBOPTIMAL_KHR:
+		case vk::SUBOPTIMAL_KHR:
 			VkExtent2D new_coords @noinit;
 			ctx.app_ctx.window.get_screen_coordinates(&new_coords);
 			VkExtent2D prev_coords = ctx.renderer.scissors.extent;
@@ -131,7 +132,7 @@ fn SwapchainPresentRes VulkanSwapchain.present(
 				return NEEDS_RECREATION;
 			}
 			return SUCCESS;
-		case VK_ERROR_OUT_OF_DATE_KHR:
+		case vk::ERROR_OUT_OF_DATE_KHR:
 			logger::logn(WARN, "Swapchain is outdated, can't proceed next frame, scheduling recreation...");
 			swapchain.recreation_scheduled = true;
 			return NEEDS_RECREATION_CANT_PROCEED;
@@ -143,7 +144,7 @@ fn SwapchainPresentRes VulkanSwapchain.present(
 
 fn void? VulkanSwapchain.recreate(&swapchain, VulkanContext* ctx, VkExtent2D extent)
 {
-	vkDeviceWaitIdle(ctx.dev.log_dev);
+	vk::deviceWaitIdle(ctx.dev.log_dev);
 	swapchain.destroy(ctx);
 	swapchain.create_inner(ctx, extent)!;
 }
@@ -165,8 +166,8 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 	VulkanDevice* dev = &ctx.dev;
 	SwapchainSupportInfo* supp_info = &dev.swapchain_supp_info;
 
-	VkExtent2D min_extent = supp_info.capabilities.min_image_extent;
-	VkExtent2D max_extent = supp_info.capabilities.max_image_extent;
+	VkExtent2D min_extent = supp_info.capabilities.minImageExtent;
+	VkExtent2D max_extent = supp_info.capabilities.maxImageExtent;
 	extent.width = math::max(extent.width, min_extent.width);
 	extent.height = math::max(extent.height, min_extent.height);
 
@@ -176,47 +177,47 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		extent.height = math::min(extent.height, max_extent.height);
 	}
 
-	uint create_image_count = supp_info.capabilities.min_image_count + 1;
-	if (supp_info.capabilities.max_image_count > 0 && create_image_count > supp_info.capabilities.max_image_count)
+	uint create_image_count = supp_info.capabilities.minImageCount + 1;
+	if (supp_info.capabilities.maxImageCount > 0 && create_image_count > supp_info.capabilities.maxImageCount)
 	{
-		create_image_count = supp_info.capabilities.max_image_count;
+		create_image_count = supp_info.capabilities.maxImageCount;
 	}
 
-		VkSwapchainCreateInfoKHR swapchain_ci = {
-		.s_type = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+	VkSwapchainCreateInfoKHR swapchain_ci = {
+		.sType = vk::STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.surface = ctx.surface,
-		.min_image_count = create_image_count,
-		.image_format = swapchain.surface_fmt.format,
-		.image_color_space = swapchain.surface_fmt.color_space,
-		.image_extent = extent,
-		.image_array_layers = 1,
-		.image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.pre_transform = supp_info.capabilities.current_transform,
-		.composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		.present_mode = swapchain.present_mode,
-		.old_swapchain = swapchain.handle,
+		.minImageCount = create_image_count,
+		.imageFormat = swapchain.surface_fmt.format,
+		.imageColorSpace = swapchain.surface_fmt.colorSpace,
+		.imageExtent = extent,
+		.imageArrayLayers = 1,
+		.imageUsage = vk::IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.preTransform = supp_info.capabilities.currentTransform,
+		.compositeAlpha = vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = swapchain.present_mode,
+		.oldSwapchain = swapchain.handle,
 	};
 
 	if (dev.queue_indices.graphics.fam != dev.queue_indices.present.fam)
 	{
 		uint[2] queue_indices = { dev.queue_indices.graphics.fam, dev.queue_indices.present.fam };
-		swapchain.sharing_mode = VK_SHARING_MODE_CONCURRENT;
-		swapchain_ci.image_sharing_mode = VK_SHARING_MODE_CONCURRENT;
-		swapchain_ci.queue_family_index_count = queue_indices.len;
-		swapchain_ci.p_queue_family_indices = &queue_indices;
+		swapchain.sharing_mode = vk::SHARING_MODE_CONCURRENT;
+		swapchain_ci.imageSharingMode = vk::SHARING_MODE_CONCURRENT;
+		swapchain_ci.queueFamilyIndexCount = queue_indices.len;
+		swapchain_ci.pQueueFamilyIndices = &queue_indices;
 	}
 	else
 	{
-		swapchain.sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
-		swapchain_ci.image_sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
-		swapchain_ci.queue_family_index_count = 0;
-		swapchain_ci.p_queue_family_indices = null;
+		swapchain.sharing_mode = vk::SHARING_MODE_EXCLUSIVE;
+		swapchain_ci.imageSharingMode = vk::SHARING_MODE_EXCLUSIVE;
+		swapchain_ci.queueFamilyIndexCount = 0;
+		swapchain_ci.pQueueFamilyIndices = null;
 	}
 
-	vk_check(vkCreateSwapchainKHR(dev.log_dev, &swapchain_ci, ctx.vk_alloc, &ctx.swapchain.handle));
+	vk_check(vk::createSwapchainKHR(dev.log_dev, &swapchain_ci, ctx.vk_alloc, &ctx.swapchain.handle));
 
 	uint actual_image_cnt @noinit;
-	vk_check(vkGetSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, null));
+	vk_check(vk::getSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, null));
 
 	actual_image_cnt = math::min(MAX_SWAPCHAIN_IMG_CNT, actual_image_cnt);
 	if (swapchain.images.size != actual_image_cnt)
@@ -228,7 +229,7 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		swapchain.image_views.resize(actual_image_cnt);
 	}
 
-	vk_check(vkGetSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, swapchain.images.data()));
+	vk_check(vk::getSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, swapchain.images.data()));
 
 	foreach (usz ind, &view : swapchain.image_views)
 	{
@@ -237,7 +238,7 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 
 	if (!dev.detect_depth_format())
 	{
-		dev.depth_fmt = VK_FORMAT_UNDEFINED;
+		dev.depth_fmt = vk::FORMAT_UNDEFINED;
 		logger::logn(FATAL, "Failed to find a supported format");
 		return SWAPCHAIN_FAILED_TO_FIND_FORMAT~;
 	}
@@ -249,10 +250,10 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		extent.width,
 		extent.height,
 		1u,
-		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		VK_IMAGE_ASPECT_DEPTH_BIT,
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		vk::IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		vk::IMAGE_ASPECT_DEPTH_BIT,
+		vk::IMAGE_LAYOUT_UNDEFINED,
+		vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 	))
 	{
 		logger::logn(FATAL, "Failed to create a depth image");
@@ -264,7 +265,7 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 	logger::logn(
 		INFO,
 		"Image sharing mode: %s",
-		swapchain.sharing_mode == VK_SHARING_MODE_CONCURRENT ? "Concurrent" : "Exclusive"
+		swapchain.sharing_mode == vk::SHARING_MODE_CONCURRENT ? "Concurrent" : "Exclusive"
 	);
 }
 
@@ -283,7 +284,7 @@ fn void? VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSu
 	bool found = false;
 	foreach (&fmt : supp_info.formats)
 	{
-		if (fmt.format == VK_FORMAT_B8G8R8A8_SRGB && fmt.color_space == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (fmt.format == vk::FORMAT_B8G8R8A8_SRGB && fmt.colorSpace == vk::COLOR_SPACE_SRGB_NONLINEAR_KHR)
 		{
 			found = true;
 			swapchain.surface_fmt = *fmt;
@@ -295,10 +296,10 @@ fn void? VulkanSwapchain.acquire_format_and_present_mode(&swapchain, SwapchainSu
 		return SWAPCHAIN_FAILED_TO_FIND_FORMAT~;
 	}
 
-	VkPresentModeKHR selected_mode = VK_PRESENT_MODE_FIFO_KHR;
+	VkPresentModeKHR selected_mode = vk::PRESENT_MODE_FIFO_KHR;
 	foreach (&mode : supp_info.present_modes)
 	{
-		if (*mode == VK_PRESENT_MODE_MAILBOX_KHR)
+		if (*mode == vk::PRESENT_MODE_MAILBOX_KHR)
 		{
 			selected_mode = *mode;
 		}
@@ -310,7 +311,7 @@ fn void VulkanSwapchain.destroy(&swapchain, VulkanContext* ctx)
 {
 	if (swapchain.handle)
 	{
-		vkDestroySwapchainKHR(ctx.dev.log_dev, swapchain.handle, ctx.vk_alloc);
+		vk::destroySwapchainKHR(ctx.dev.log_dev, swapchain.handle, ctx.vk_alloc);
 		swapchain.handle = null;
 	}
 }

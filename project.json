@@ -6,6 +6,7 @@
   "authors":  [ "nyr24" ],
   "version": "0.1.0",
   "sources":  [ "src/**" ],
+  "c-sources": [ "src/**" ],
   "test-sources":  [ "test/**" ],
   "build-dir": "build",
   "output": "build/debug",

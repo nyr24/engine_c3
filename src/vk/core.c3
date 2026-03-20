@@ -1,6 +1,6 @@
-module vk;
+module engine::vk;
 
-import engine;
+import vk;
 import window;
 import logger;
 import std::collections::elastic_array;
@@ -46,7 +46,7 @@ faultdef
 
 fn void? init_vk(App* app_ctx, AppConfig* app_config, Window* window)
 {
-	vk_check(vk::volk_initialize());
+	vk_check(vk::volkInitialize());
 
 	app_ctx.vk_ctx.app_ctx = app_ctx;
 	VulkanContext* ctx = &app_ctx.vk_ctx;
@@ -90,13 +90,13 @@ fn void create_main_shader(VulkanContext* ctx) @local
 	const MAIN_SHADER_NAME = "shader_main.spv";
 
 	// VkDescriptorSetLayoutBinding[1] descriptor_bindings;
-	// VkDescriptorType[1] global_descriptor_types = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
+	// VkDescriptorType[1] global_descriptor_types = { vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER };
 	// VkDescriptorType[*] local_descriptor_types = {
-		// VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		// VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// vk::DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		// vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		// vk::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 	// };
 
 	// descriptor_bindings[0].resize(global_descriptor_types.len);
@@ -104,14 +104,14 @@ fn void create_main_shader(VulkanContext* ctx) @local
 
 	// global ubo
 	// create_descriptor_bindings(
-	// 	VK_SHADER_STAGE_VERTEX_BIT,
+	// 	vk::SHADER_STAGE_VERTEX_BIT,
 	// 	global_descriptor_types[..],
 	// 	descriptor_bindings[..],
 	// );
 
 	// local ubo
 	// create_descriptor_bindings(
-	// 	VK_SHADER_STAGE_FRAGMENT_BIT,
+	// 	vk::SHADER_STAGE_FRAGMENT_BIT,
 	// 	local_descriptor_types[..],
 	// 	descriptor_bindings[1].array_view(),
 	// );
@@ -124,35 +124,35 @@ fn void create_main_shader(VulkanContext* ctx) @local
 		{
 		    .binding = 0,
 		    .location = 0,
-		    .format = VK_FORMAT_R32G32B32_SFLOAT,
+		    .format = vk::FORMAT_R32G32B32_SFLOAT,
 		    .offset = 0,
 		},
 	    // Normal
 		{
 		    .binding = 0,
 		    .location = 1,
-		    .format = VK_FORMAT_R32G32B32_SFLOAT,
+		    .format = vk::FORMAT_R32G32B32_SFLOAT,
 		    .offset = Vec3.sizeof * 1,
 		},
 	    // Texture sampler
 	    {
 		    .binding = 0,
 		    .location = 2,
-		    .format = VK_FORMAT_R32G32_SFLOAT,
+		    .format = vk::FORMAT_R32G32_SFLOAT,
 		    .offset = Vec3.sizeof * 2,
 		},
 		// NOTE: TEMP (color)
 		{
 		    .binding = 0,
 		    .location = 3,
-		    .format = VK_FORMAT_R32G32B32_SFLOAT,
+		    .format = vk::FORMAT_R32G32B32_SFLOAT,
 		    .offset = Vec3.sizeof * 2 + Vec2.sizeof,
 		}
 	};
 
     VkPushConstantRange[1] push_constant_ranges = {
 		{
-	        .stage_flags = VK_SHADER_STAGE_VERTEX_BIT,
+	        .stageFlags = vk::SHADER_STAGE_VERTEX_BIT,
 	        .offset = 0,
 	        .size = math::Mat4.sizeof,
 		}
@@ -160,10 +160,10 @@ fn void create_main_shader(VulkanContext* ctx) @local
 
 	VulkanPipelineConfig[1] pipeline_configs = {
 		{
-			.primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.polygon_mode = VK_POLYGON_MODE_FILL,
+			.primitive_topology = vk::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.polygon_mode = vk::POLYGON_MODE_FILL,
 			.line_width = 1.0f,
-			.sample_count = VK_SAMPLE_COUNT_1_BIT,
+			.sample_count = vk::SAMPLE_COUNT_1_BIT,
 			.enable_color_blend = true,
 		}
 	};
@@ -269,7 +269,7 @@ fn void VulkanContext.destroy(&ctx)
 	destroy_frame_data(ctx);
 	ctx.swapchain.destroy(ctx);
 	ctx.dev.destroy(ctx);
-	vkDestroyInstance(ctx.instance, ctx.vk_alloc);
+	vk::destroyInstance(ctx.instance, ctx.vk_alloc);
 }
 
 // Utility

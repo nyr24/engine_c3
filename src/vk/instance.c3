@@ -1,6 +1,6 @@
-module vk;
+module engine::vk;
 
-import engine;
+import vk;
 import platform;
 import logger;
 import util;
@@ -18,13 +18,13 @@ fn bool init_instance(VulkanContext* context, AppConfig* config) @private
 	context.vk_alloc = null;
 
     VkApplicationInfo vk_app_info = {
-        .s_type = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .api_version = VK_API_VERSION_1_3,
+        .sType = vk::STRUCTURE_TYPE_APPLICATION_INFO,
+        .apiVersion = vk::API_VERSION_1_3,
     };
 
     VkInstanceCreateInfo instance_ci = {
-        .s_type = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .p_application_info = &vk_app_info,
+        .sType = vk::STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pApplicationInfo = &vk_app_info,
     };
 
 $if ($feature(SF_DEBUG)):
@@ -38,11 +38,11 @@ $if ($feature(SF_DEBUG)):
 $endif
 
     ElasticArray{ZString, MAX_REQ_EXT_CNT} req_extensions;
-    req_extensions.push((ZString)VK_KHR_SURFACE_EXTENSION_NAME);
+    req_extensions.push((ZString)vk::KHR_SURFACE_EXTENSION_NAME);
     req_extensions.push(platform::get_surface_ext());
 
 $if ($feature(SF_DEBUG)):
-	req_extensions.push((ZString)VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	req_extensions.push((ZString)vk::EXT_DEBUG_UTILS_EXTENSION_NAME);
 $endif
 
 $if ($feature(SF_DEBUG)):
@@ -51,12 +51,12 @@ $if ($feature(SF_DEBUG)):
 	}
 $endif
 
-	instance_ci.enabled_extension_count = (uint)req_extensions.size;
-	instance_ci.pp_enabled_extension_names = (CChar**)req_extensions.data();
+	instance_ci.enabledExtensionCount = (uint)req_extensions.size;
+	instance_ci.ppEnabledExtensionNames = (CChar**)req_extensions.data();
 
-	vk_check(vkCreateInstance(&instance_ci, null, &context.instance));
+	vk_check(vk::createInstance(&instance_ci, null, &context.instance));
 
-	volk_load_instance_only(context.instance);
+	vk::volkLoadInstanceOnly(context.instance);
 
 $if ($feature(SF_DEBUG)):
 	create_debugger(context);
@@ -70,14 +70,14 @@ fn bool add_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_layers) @if($f
     ElasticArray{VkLayerProperties, MAX_AVAIL_LAYERS_CNT} avail_layers;
 	uint avail_layer_cnt @noinit;
 
-	vk_check(vkEnumerateInstanceLayerProperties(&avail_layer_cnt, null));
+	vk_check(vk::enumerateInstanceLayerProperties(&avail_layer_cnt, null));
 	avail_layer_cnt = math::min(MAX_AVAIL_LAYERS_CNT, avail_layer_cnt);
 	avail_layers.resize(avail_layer_cnt);
-	vk_check(vkEnumerateInstanceLayerProperties(&avail_layer_cnt, avail_layers.data()));
+	vk_check(vk::enumerateInstanceLayerProperties(&avail_layer_cnt, avail_layers.data()));
 
 	foreach OUTER: (req_layer : req_layers.array_view()) {
 		foreach (&avail_layer : avail_layers.array_view()) {
-			if ((ZString)&avail_layer.layer_name, req_layer) {
+			if ((ZString)&avail_layer.layerName, req_layer) {
 				logger::logn(INFO, "Required layer was found: %s", req_layer);
 				continue OUTER;
 			}
@@ -94,15 +94,15 @@ fn bool check_req_extensions(ElasticArray{ZString, MAX_REQ_EXT_CNT}* req_extensi
     ElasticArray{VkExtensionProperties, MAX_AVAIL_LAYERS_CNT} avail_extensions;
 
 	uint avail_ext_cnt @noinit;
-	vk_check(vkEnumerateInstanceExtensionProperties(null, &avail_ext_cnt, null));
+	vk_check(vk::enumerateInstanceExtensionProperties(null, &avail_ext_cnt, null));
 	avail_ext_cnt = math::min(MAX_AVAIL_EXT_CNT, avail_ext_cnt);
 	avail_extensions.resize(avail_ext_cnt);
 
-	vk_check(vkEnumerateInstanceExtensionProperties(null, &avail_ext_cnt, avail_extensions.data()));
+	vk_check(vk::enumerateInstanceExtensionProperties(null, &avail_ext_cnt, avail_extensions.data()));
 
 	foreach OUTER: (req_ext : req_extensions.array_view()) {
 		foreach (&avail_ext : avail_extensions.array_view()) {
-			if ((ZString)&avail_ext.extension_name == req_ext) {
+			if ((ZString)&avail_ext.extensionName == req_ext) {
 				continue OUTER;
 			}
 		}
@@ -115,20 +115,20 @@ fn bool check_req_extensions(ElasticArray{ZString, MAX_REQ_EXT_CNT}* req_extensi
 
 fn void create_debugger(VulkanContext* context) @if($feature(SF_DEBUG)) @private
 {
-    uint log_severity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+    uint log_severity = vk::DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+                        vk::DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                        vk::DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+                        vk::DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
 
     VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {
-        .s_type = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .message_severity = log_severity,
-        .message_type = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT,
-        .pfn_user_callback = &vk_debug_callback,
+        .sType = vk::STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity = log_severity,
+        .messageType = vk::DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | vk::DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | vk::DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT,
+        .pfnUserCallback = &vk_debug_callback,
     };
 
 	PFN_vkCreateDebugUtilsMessengerEXT create_debug_messenger =
-		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context.instance, "vkCreateDebugUtilsMessengerEXT");
+		(PFN_vkCreateDebugUtilsMessengerEXT)vk::getInstanceProcAddr(context.instance, "vkCreateDebugUtilsMessengerEXT");
 
 	assert(create_debug_messenger != null, "Debug utils extension was not found");
 
@@ -143,19 +143,19 @@ fn VkBool32 vk_debug_callback(
 ) @if ($feature(SF_DEBUG)) @export
 {
 	switch (message_severity) {
-	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-	        logger::logn(ERROR, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	    case vk::DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+	        logger::logn(ERROR, "%s", (ZString)callback_data.pMessage);
 	        break;
-	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-	        logger::logn(WARN, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	    case vk::DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+	        logger::logn(WARN, "%s", (ZString)callback_data.pMessage);
 	        break;
-	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-	        logger::logn(INFO, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	    case vk::DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+	        logger::logn(INFO, "%s", (ZString)callback_data.pMessage);
 	        break;
-	    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-	        logger::logn(TRACE, "%s", util::nullterm_str_to_slice(callback_data.p_message));
+	    case vk::DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+	        logger::logn(TRACE, "%s", (ZString)callback_data.pMessage);
 	        break;
-		default: return VK_FALSE;
+		default: return vk::FALSE;
 	}
-	return VK_FALSE;
+	return vk::FALSE;
 }

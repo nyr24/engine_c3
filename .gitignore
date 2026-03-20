@@ -2,3 +2,5 @@ build/
 out/
 testrun
 todo.local.md
+.project.gf
+.vscode

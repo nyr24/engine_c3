@@ -22,3 +22,7 @@
 	branch = main
 	fetchRecurseSubmodules = false
 	shallow = true
+[submodule "src/dependencies/stb_c3"]
+	path = src/dependencies/stb_c3
+	url = git@github.com:nyr24/stb_c3.git
+	branch = main

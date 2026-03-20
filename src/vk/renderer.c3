@@ -1,6 +1,6 @@
-module vk;
+module engine::vk;
 
-import engine;
+import vk;
 import logger;
 import std::math;
 
@@ -37,11 +37,11 @@ fn void VulkanRenderer.init(
 	renderer.viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
+		.height = (float)init_area.height,
+		// NOTE: should be configurable and passed to perspective()
 		.width = (float)init_area.width,
-		.height = (float)init_area
-			.height, // NOTE: should be configurable and passed to perspective()
-		.min_depth = 0.0f,
-		.max_depth = 100.0f,
+		.minDepth = 0.0f,
+		.maxDepth = 100.0f,
 	};
 	renderer.scissors = {
 		.offset = engine::OFFSET_START,
@@ -55,7 +55,7 @@ fn void VulkanRenderer.init(
 		engine::get_cube_indices(ushort)[..]
 	)!!;
 
-	renderer.camera.init({ 0, 0.5, 2 }, engine::V3_FAR);
+	renderer.camera.init({ 0, 0, 2 }, engine::V3_FAR);
 	renderer.update_view_projection();
 
 	initialize_event_handlers(&ctx.app_ctx.event_sys);
@@ -105,8 +105,8 @@ fn void draw_frame(VulkanContext* ctx)
 	}
 
 	VkBufferCopy copy_region = {
-		.src_offset = 0,
-		.dst_offset = 0,
+		.srcOffset = 0,
+		.dstOffset = 0,
 		.size = elem_buff.all_size_bytes,
 	};
 	frame.transfer_cmd_buff.cmd_copy_data_between_buff(
@@ -117,11 +117,11 @@ fn void draw_frame(VulkanContext* ctx)
 	frame.transfer_cmd_buff.end_recording();
 
 	VkSubmitInfo transfer_submit_info = {
-		.s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.command_buffer_count = 1,
-		.p_command_buffers = &frame.transfer_cmd_buff.handle,
-		.signal_semaphore_count = 1,
-		.p_signal_semaphores = &frame.transfer_end_sem.handle,
+		.sType = vk::STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &frame.transfer_cmd_buff.handle,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &frame.transfer_end_sem.handle,
 	};
 
 	frame.transfer_cmd_buff.submit(
@@ -138,7 +138,7 @@ fn void draw_frame(VulkanContext* ctx)
 	ctx.renderer.bind_viewport_scissors(frame.graphics_cmd_buff);
 	shader.bind_descriptor_sets(
 		frame.graphics_cmd_buff,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		vk::PIPELINE_BIND_POINT_GRAPHICS,
 		(&ctx.renderer.global_descriptor_sets[curr_frame])[:1]
 	);
 
@@ -170,19 +170,19 @@ fn void draw_frame(VulkanContext* ctx)
 		frame.transfer_end_sem.handle
 	};
 	VkPipelineStageFlags[WAIT_SEM_COUNT] wait_dest_mask = {
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT
+		vk::PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		vk::PIPELINE_STAGE_VERTEX_INPUT_BIT
 	};
 
 	VkSubmitInfo submit_info = {
-		.s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.wait_semaphore_count = WAIT_SEM_COUNT,
-		.p_wait_semaphores = &wait_semaphores,
-		.p_wait_dst_stage_mask = &wait_dest_mask,
-		.command_buffer_count = 1,
-		.p_command_buffers = &frame.graphics_cmd_buff.handle,
-		.signal_semaphore_count = 1,
-		.p_signal_semaphores = &frame.render_end_sem.handle,
+		.sType = vk::STRUCTURE_TYPE_SUBMIT_INFO,
+		.waitSemaphoreCount = WAIT_SEM_COUNT,
+		.pWaitSemaphores = &wait_semaphores,
+		.pWaitDstStageMask = &wait_dest_mask,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &frame.graphics_cmd_buff.handle,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &frame.render_end_sem.handle,
 	};
 
 	frame.graphics_cmd_buff.submit(
@@ -236,8 +236,8 @@ fn void VulkanRenderer.cmd_send_viewport_scissors(
 	VulkanCmdBuffer cmd_buffer
 )
 {
-	vkCmdSetViewport(cmd_buffer.handle, 0, 1, &renderer.viewport);
-	vkCmdSetScissor(cmd_buffer.handle, 0, 1, &renderer.scissors);
+	vk::cmdSetViewport(cmd_buffer.handle, 0, 1, &renderer.viewport);
+	vk::cmdSetScissor(cmd_buffer.handle, 0, 1, &renderer.scissors);
 }
 
 fn void VulkanRenderer.bind_viewport_scissors(
@@ -245,8 +245,8 @@ fn void VulkanRenderer.bind_viewport_scissors(
 	VulkanCmdBuffer graphics_cmd_buffer
 )
 {
-	vkCmdSetViewport(graphics_cmd_buffer.handle, 0, 1, &renderer.viewport);
-	vkCmdSetScissor(graphics_cmd_buffer.handle, 0, 1, &renderer.scissors);
+	vk::cmdSetViewport(graphics_cmd_buffer.handle, 0, 1, &renderer.viewport);
+	vk::cmdSetScissor(graphics_cmd_buffer.handle, 0, 1, &renderer.scissors);
 }
 
 fn VkExtent2D VulkanRenderer.get_extent(&renderer) @inline
@@ -272,59 +272,59 @@ fn void begin_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 	cmd_transition_layout_raw(
 		curr_image,
 		*cmd_buffer,
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		vk::IMAGE_LAYOUT_UNDEFINED,
+		vk::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		vk::PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+		vk::PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		0,
-		VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		vk::ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		false
 	);
 
 	cmd_transition_layout_raw(
 		ctx.swapchain.depth_image.handle,
 		*cmd_buffer,
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+		vk::IMAGE_LAYOUT_UNDEFINED,
+		vk::IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		vk::PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+		vk::PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
 		0,
-		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
-			| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+			| vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 		true
 	);
 
 	VkRenderingAttachmentInfo color_attachment_info = {
-		.s_type = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.image_view = curr_view,
-		.image_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.store_op = VK_ATTACHMENT_STORE_OP_STORE,
-		.clear_value = {
-			.color = { .float_32 = ctx.renderer.clear_color },
-			.depth_stencil = { }
+		.sType = vk::STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageView = curr_view,
+		.imageLayout = vk::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.loadOp = vk::ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = vk::ATTACHMENT_STORE_OP_STORE,
+		.clearValue = {
+			.color = { .float32 = ctx.renderer.clear_color },
+			.depthStencil = { }
 		},
 	};
 
 	VkRenderingAttachmentInfo depth_attachment_info = {
-		.s_type = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.image_view = ctx.swapchain.depth_image.view,
-		.image_layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-		.load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.store_op = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		.clear_value = { .depth_stencil = engine::CLEAR_DEPTH_VALUE },
+		.sType = vk::STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageView = ctx.swapchain.depth_image.view,
+		.imageLayout = vk::IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		.loadOp = vk::ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = vk::ATTACHMENT_STORE_OP_DONT_CARE,
+		.clearValue = { .depthStencil = engine::CLEAR_DEPTH_VALUE },
 	};
 
 	VkRenderingInfo rendering_info = {
-		.s_type = VK_STRUCTURE_TYPE_RENDERING_INFO,
-		.render_area = {
+		.sType = vk::STRUCTURE_TYPE_RENDERING_INFO,
+		.renderArea = {
 			.offset = engine::OFFSET_START,
 			.extent = ctx.renderer.scissors.extent
 		},
-		.layer_count = 1,
-		.color_attachment_count = 1,
-		.p_color_attachments = &color_attachment_info,
-		.p_depth_attachment = &depth_attachment_info,
+		.layerCount = 1,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &color_attachment_info,
+		.pDepthAttachment = &depth_attachment_info,
 	};
 
 	cmd_buffer.cmd_begin_rendering(&rendering_info);
@@ -338,25 +338,25 @@ fn void end_rendering(VulkanContext* ctx, VulkanCmdBuffer* cmd_buffer)
 	cmd_transition_layout_raw(
 		swapchain.access_curr_image(),
 		*cmd_buffer,
-		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		vk::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		vk::IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		vk::PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+		vk::PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		0,
-		VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		vk::ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		false
 	);
 
 	cmd_transition_layout_raw(
 		swapchain.depth_image.handle,
 		*cmd_buffer,
-		VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+		vk::IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		vk::IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		vk::PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+		vk::PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
 		0,
-		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
-			| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+			| vk::ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 		true
 	);
 }
@@ -388,10 +388,10 @@ fn void VulkanCmdBuffer.cmd_push_mvp(
 )
 {
 	Mat4 mvp = proj * view * model;
-	vkCmdPushConstants(
+	vk::cmdPushConstants(
 		cmd_buffer.handle,
 		pipeline.layout,
-		VK_SHADER_STAGE_VERTEX_BIT,
+		vk::SHADER_STAGE_VERTEX_BIT,
 		0,
 		Mat4.sizeof,
 		&mvp

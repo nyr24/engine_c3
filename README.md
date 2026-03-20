@@ -6,6 +6,7 @@
 - `git submodule update --remote --init src/dependencies/serializer`
 - `git submodule update --remote --init src/dependencies/soa`
 - `git submodule update --remote --init src/dependencies/arena_alloc`
+- `git submodule update --remote --init src/dependencies/stb_c3`
 
 ### Build
 `./build.sh [-r]`
