@@ -28,12 +28,13 @@ fn Window? create(App* app_ctx, ZString name, uint width, uint height)
 	glfw::windowHint(glfw::CLIENT_API, glfw::NO_API);
 
 	glfw::GLFWwindow* handle = glfw::createWindow(
-		(CInt)width,
-		(CInt)height,
-		(CChar*)name,
+		(int)width,
+		(int)height,
+		name,
 		null,
 		null
 	);
+
 	if (!handle)
 	{
 		return WINDOW_CREATION_FAILED~;
@@ -88,6 +89,7 @@ fn void glfw_key_callback(
 	int mode
 )
 {
+	// We're handling repeat outselves.
 	if (action == glfw::REPEAT)
 	{
 		return;
@@ -107,6 +109,9 @@ fn void glfw_mouse_wheel_callback(
 	app_ctx.input_sys.process_mouse_wheel(yoffset < 0);
 }
 
+<*
+ @ensure surface != null : "Shouldn't be null pointer after call"
+*>
 fn void Window.create_vk_surface(
 	&window,
 	VkInstance instance,
@@ -117,15 +122,17 @@ fn void Window.create_vk_surface(
 }
 
 <*
- @param [out] out_coords : "Retrieved window coordinates"
+ @return "Retrieved window coordinates"
 *>
-fn void Window.get_screen_coordinates(&window, VkExtent2D* out_coords)
+fn VkExtent2D Window.get_screen_coordinates(&window)
 {
+	VkExtent2D coords @noinit;
 	glfw::getFramebufferSize(
 		window.handle,
-		(CInt*)&out_coords.width,
-		(CInt*)&out_coords.height
+		(int*)&coords.width,
+		(int*)&coords.height
 	);
+	return coords;
 }
 
 fn void Window.destroy(&window)

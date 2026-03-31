@@ -54,7 +54,7 @@ $endif
 	instance_ci.enabledExtensionCount = (uint)req_extensions.size;
 	instance_ci.ppEnabledExtensionNames = (CChar**)req_extensions.data();
 
-	vk_check(vk::createInstance(&instance_ci, null, &context.instance));
+	check(vk::createInstance(&instance_ci, null, &context.instance));
 
 	vk::volkLoadInstanceOnly(context.instance);
 
@@ -70,10 +70,10 @@ fn bool add_layers(ElasticArray{ZString, MAX_REQ_LAYERS_CNT}* req_layers) @if($f
     ElasticArray{VkLayerProperties, MAX_AVAIL_LAYERS_CNT} avail_layers;
 	uint avail_layer_cnt @noinit;
 
-	vk_check(vk::enumerateInstanceLayerProperties(&avail_layer_cnt, null));
+	check(vk::enumerateInstanceLayerProperties(&avail_layer_cnt, null));
 	avail_layer_cnt = math::min(MAX_AVAIL_LAYERS_CNT, avail_layer_cnt);
 	avail_layers.resize(avail_layer_cnt);
-	vk_check(vk::enumerateInstanceLayerProperties(&avail_layer_cnt, avail_layers.data()));
+	check(vk::enumerateInstanceLayerProperties(&avail_layer_cnt, avail_layers.data()));
 
 	foreach OUTER: (req_layer : req_layers.array_view()) {
 		foreach (&avail_layer : avail_layers.array_view()) {
@@ -94,11 +94,11 @@ fn bool check_req_extensions(ElasticArray{ZString, MAX_REQ_EXT_CNT}* req_extensi
     ElasticArray{VkExtensionProperties, MAX_AVAIL_LAYERS_CNT} avail_extensions;
 
 	uint avail_ext_cnt @noinit;
-	vk_check(vk::enumerateInstanceExtensionProperties(null, &avail_ext_cnt, null));
+	check(vk::enumerateInstanceExtensionProperties(null, &avail_ext_cnt, null));
 	avail_ext_cnt = math::min(MAX_AVAIL_EXT_CNT, avail_ext_cnt);
 	avail_extensions.resize(avail_ext_cnt);
 
-	vk_check(vk::enumerateInstanceExtensionProperties(null, &avail_ext_cnt, avail_extensions.data()));
+	check(vk::enumerateInstanceExtensionProperties(null, &avail_ext_cnt, avail_extensions.data()));
 
 	foreach OUTER: (req_ext : req_extensions.array_view()) {
 		foreach (&avail_ext : avail_extensions.array_view()) {
@@ -132,7 +132,7 @@ fn void create_debugger(VulkanContext* context) @if($feature(SF_DEBUG)) @private
 
 	assert(create_debug_messenger != null, "Debug utils extension was not found");
 
-	vk_check(create_debug_messenger(context.instance, &debug_create_info, null, &context.debug_messenger));
+	check(create_debug_messenger(context.instance, &debug_create_info, null, &context.debug_messenger));
 }
 
 fn VkBool32 vk_debug_callback(

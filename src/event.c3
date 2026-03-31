@@ -4,14 +4,18 @@ import std::collections::elastic_array;
 
 const MAX_EVENT_CNT = 100u;
 
+// if returns true, dont proceed with calls to other handlers (event has been handled)
+alias EventHandlerFn = fn bool(EventContext ctx, void* listener);
+alias EventHandlerList = ElasticArray{EventHandlerFn, MAX_EVENT_CNT};
+
 struct EventSystem
 {
-	EventHandlerList[EventCode.len] handlers;
+	EventHandlerList[EventCode::len] handlers;
 }
 
 // NOTE: first two events are the same value as glfw
 // Don't reorder
-enum EventCode : inline uint
+enum EventCode : uint
 {
 	MOUSE_DOWN,
 	MOUSE_UP,
@@ -36,10 +40,6 @@ union EventContext
     ichar[16]   i8;
 	bool[16]    b8;
 }
-
-// if returns true, dont proceed with calls to other handlers (event has been handled)
-alias EventHandlerFn = fn bool(EventContext ctx, void* listener);
-alias EventHandlerList = ElasticArray{EventHandlerFn, MAX_EVENT_CNT};
 
 <*
 	@require handler != null : "handler should be valid pointer"

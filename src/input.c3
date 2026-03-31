@@ -19,7 +19,6 @@ struct InputSystem
 	KeyRepeatGlobalState key_repeat_state;
 	KeyRepeatTimer[glfw::KEY_LAST] key_repeat_timers;
 	App* app;
-	// NOTE: TEST
 	bool accept_move_events;
 }
 
@@ -28,7 +27,7 @@ alias KeyboardState = bool[glfw::KEY_LAST];
 alias MouseDelta = MousePos;
 
 // matches glfw
-enum MouseButton : inline uint
+enum MouseButton : uint
 {
 	LEFT,
 	RIGHT,
@@ -45,7 +44,7 @@ struct MouseState
 {
 	MousePos pos;
 	// down = true, up = false
-	bool[MouseButton.len] buttons;
+	bool[MouseButton::len] buttons;
 }
 
 struct KeyRepeatGlobalState
@@ -62,7 +61,7 @@ struct KeyRepeatTimer
 
 fn void InputSystem.init(&input_sys, App* app)
 {
-	mem::clear(input_sys, InputSystem.sizeof);
+	mem::clear(input_sys, InputSystem::size);
 	input_sys.key_repeat_state.rate = DEFAULT_KEY_REPEAT_RATE_US;
 	input_sys.key_repeat_state.delay = DEFAULT_KEY_REPEAT_DELAY_US;
 	input_sys.app = app;
@@ -70,8 +69,8 @@ fn void InputSystem.init(&input_sys, App* app)
 
 fn void InputSystem.update(&input_sys)
 {
-	mem::copy(&input_sys.kb_prev, &input_sys.kb_curr, KeyboardState.sizeof);
-	mem::copy(&input_sys.mouse_prev, &input_sys.mouse_curr, MouseState.sizeof);
+	mem::copy(&input_sys.kb_prev, &input_sys.kb_curr, KeyboardState::size);
+	mem::copy(&input_sys.mouse_prev, &input_sys.mouse_curr, MouseState::size);
 
 	for (uint i = 0; i < glfw::KEY_LAST; ++i)
 	{
@@ -189,7 +188,7 @@ fn void InputSystem.process_mouse_button(
 {
 	input_sys.mouse_curr.buttons[button] = is_pressed;
 	EventContext context @noinit;
-	context.u32[0] = button;
+	context.u32[0] = (uint)button;
 	input_sys.app.event_sys.execute_handlers_for_event(
 		is_pressed ? MOUSE_DOWN : MOUSE_UP,
 		context,

@@ -12,9 +12,7 @@ fn int main(String[] args)
 	};
 
 	App app;
-	if (!app.init(config)) {
-		return -1;
-	}
+	app.init(config)!!;
 	defer app.shutdown();
 
 	app.run();

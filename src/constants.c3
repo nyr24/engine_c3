@@ -6,36 +6,47 @@ import std::math;
 alias ColorRGB = Vec3;
 alias ColorRGBA = Vec4;
 
-const ColorRGB COLOR_WHITE_RGB  = {1.0f, 1.0f, 1.0f};
-const ColorRGB COLOR_BLACK_RGB  = {0.0f, 0.0f, 0.0f};
-const ColorRGB COLOR_RED_RGB    = {1.0f, 0.0f, 0.0f};
-const ColorRGB COLOR_GREEN_RGB  = {0.0f, 1.0f, 0.0f};
-const ColorRGB COLOR_BLUE_RGB   = {0.0f, 0.0f, 1.0f};
-const ColorRGB COLOR_ORANGE_RGB = {0.7f, 0.3f, 0.0f};
-const ColorRGB COLOR_PURPLE_RGB = {0.5f, 0.0f, 0.5f};
-const ColorRGB COLOR_YELLOW_RGB = {0.5f, 0.5f, 0.0f};
+const ColorRGB COLOR_WHITE_RGB  = { 1.0f, 1.0f, 1.0f };
+const ColorRGB COLOR_BLACK_RGB  = { 0.0f, 0.0f, 0.0f };
+const ColorRGB COLOR_RED_RGB    = { 1.0f, 0.0f, 0.0f };
+const ColorRGB COLOR_GREEN_RGB  = { 0.0f, 1.0f, 0.0f };
+const ColorRGB COLOR_BLUE_RGB   = { 0.0f, 0.0f, 1.0f };
+const ColorRGB COLOR_ORANGE_RGB = { 0.7f, 0.3f, 0.0f };
+const ColorRGB COLOR_PURPLE_RGB = { 0.5f, 0.0f, 0.5f };
+const ColorRGB COLOR_YELLOW_RGB = { 0.5f, 0.5f, 0.0f };
 
-const ColorRGBA COLOR_WHITE_RGBA      = {1.0f, 1.0f, 1.0f, 1.0f};
-const ColorRGBA COLOR_BLACK_RGBA      = {0.0f, 0.0f, 0.0f, 1.0f};
-const ColorRGBA COLOR_RED_RGBA        = {1.0f, 0.0f, 0.0f, 1.0f};
-const ColorRGBA COLOR_GREEN_RGBA      = {0.0f, 1.0f, 0.0f, 1.0f};
-const ColorRGBA COLOR_BLUE_RGBA       = {0.0f, 0.0f, 1.0f, 1.0f};
-const ColorRGBA COLOR_ORANGE_RGBA     = {0.0f, 0.5f, 0.1f, 1.0f};
-const ColorRGBA COLOR_PURPLE_RGBA     = {0.5f, 0.0f, 0.5f, 1.0f};
-const ColorRGBA COLOR_YELLOW_RGBA     = {0.0f, 1.0f, 0.0f, 1.0f};
-const ColorRGBA COLOR_DARK_BLUE_RGBA  = {0.0f, 0.0f, 0.15f, 1.0f};
+const ColorRGBA COLOR_WHITE_RGBA     = { 1.0f, 1.0f, 1.0f, 1.0f };
+const ColorRGBA COLOR_BLACK_RGBA     = { 0.0f, 0.0f, 0.0f, 1.0f };
+const ColorRGBA COLOR_RED_RGBA       = { 1.0f, 0.0f, 0.0f, 1.0f };
+const ColorRGBA COLOR_GREEN_RGBA     = { 0.0f, 1.0f, 0.0f, 1.0f };
+const ColorRGBA COLOR_BLUE_RGBA      = { 0.0f, 0.0f, 1.0f, 1.0f };
+const ColorRGBA COLOR_ORANGE_RGBA    = { 0.0f, 0.5f, 0.1f, 1.0f };
+const ColorRGBA COLOR_PURPLE_RGBA    = { 0.04f, 0.0f, 0.1f, 1.0f };
+const ColorRGBA COLOR_YELLOW_RGBA    = { 0.0f, 1.0f, 0.0f, 1.0f };
+const ColorRGBA COLOR_DARK_BLUE_RGBA = { 0.0f, 0.0f, 0.15f, 1.0f };
 
 const VkClearDepthStencilValue CLEAR_DEPTH_VALUE = { .depth = 1.0f, .stencil = 0 };
 
 const VkOffset2D OFFSET_START = { 0, 0 };
 
-const FRAMES_IN_FLIGHT = 2;
-const String BUILD_PATH = $feature(SF_DEBUG) ? "build/debug/" : "build/release/";
-const String SHADER_PATH = BUILD_PATH +++ "shaders/";
-const String TEXTURE_PATH = BUILD_PATH +++ "textures/";
-const ZString VERTEX_SHADER_ENTRY_NAME = "vertMain";
-const ZString FRAGMENT_SHADER_ENTRY_NAME = "fragMain";
-const ZString COMPUTE_SHADER_ENTRY_NAME = "compMain";
-const ZString GEOMETRY_SHADER_ENTRY_NAME = "geoMain";
+const FRAMES_IN_FLIGHT                              = 2;
+const String BUILD_PATH                             = $feature( SF_DEBUG ) ? "build/debug/" : "build/release/";
+const String ASSETS_PATH                            = BUILD_PATH +++ "assets/";
+const String SHADERS_PATH                           = BUILD_PATH +++ "shaders/";
+const String TEXTURES_PATH                          = ASSETS_PATH +++ "textures/";
+const String MODELS_PATH                            = ASSETS_PATH +++ "models/";
+const ZString VERTEX_SHADER_ENTRY_NAME              = "vertMain";
+const ZString FRAGMENT_SHADER_ENTRY_NAME            = "fragMain";
+const ZString COMPUTE_SHADER_ENTRY_NAME             = "compMain";
+const ZString GEOMETRY_SHADER_ENTRY_NAME            = "geoMain";
 const ZString TESSELATION_CONTROL_SHADER_ENTRY_NAME = "tesControlMain";
-const ZString TESSELATION_EVAL_SHADER_ENTRY_NAME = "tesEvalMain";
+const ZString TESSELATION_EVAL_SHADER_ENTRY_NAME    = "tesEvalMain";
+
+enum TransformType
+{
+	SCALE,
+	TRANSLATION,
+	ROTATION,
+}
+
+const INVALID_INDEX = -1;

@@ -4,9 +4,14 @@ DEBUG_BUILD_DIR="build/debug"
 RELEASE_BUILD_DIR="build/release"
 ASSETS_SRC_DIR="resources/assets"
 SHADERS_SRC_DIR="resources/shaders"
+DEBUG_TARGET="debug"
+RELEASE_SAFE_TARGET="release_safe"
+RELEASE_FAST_TARGET="release_fast"
 
 C3_OPTS=""
 IS_RELEASE=0;
+# for release_safe
+IS_SAFE=0;
 IS_VERBOSE=0; 
 BUILD_TESTS=0;
 COPY_ASSETS=0;
@@ -68,12 +73,13 @@ for arg in "$@"; do
   -r | -release)
     IS_RELEASE=1
     ;;
-  -small | -small)
-    C3_OPTS+="--optsize=tiny "
-    ;;
-  -san | -sanitize)
+  -san_addr)
     echo "Building with sanitizer"
     C3_OPTS+="--sanitize=address "
+    ;;
+  -san_mem)
+    echo "Building with sanitizer"
+    C3_OPTS+="--sanitize=memory "
     ;;
   -strict)
     C3_OPTS+="--validation=obnoxious "
@@ -82,8 +88,8 @@ for arg in "$@"; do
     echo "Rebuilding"
     CMAKE_BUILD_OPTS+="--clean-first "
     ;;
-  -v | -verb)
-    C3_OPTS+="-v --build-env "
+  -verb | -verbose)
+    C3_OPTS+="-v "
     IS_VERBOSE=1
     ;;
   -vsync)
@@ -114,13 +120,20 @@ for arg in "$@"; do
   -no_cursor)
     C3_OPTS+="-D SF_HIDE_CURSOR "
     ;;
+  -safe)
+    echo "Safe=ON"
+    IS_SAFE=1
+    ;;
+  -small)
+    C3_OPTS+="--optsize=tiny "
+    ;;
   *)
     echo "Unknown argument: $arg"
     ;;
   esac
 done
 
-# Finally make decision about OS and linked Libraries:
+# Finally making a decision about OS and linked Libraries:
 
 case "$PLATFORM" in
     $PLATFORM_WIN32_SWITCH)
@@ -147,52 +160,55 @@ esac
 C3_OPTS+="$LIBRARIES "
 
 # Debug
-if [ $IS_RELEASE -eq 0 ]; then
+if [ $IS_RELEASE == 0 ]; then
   echo "Building in DEBUG mode"
-  C3_OPTS+="-O0 -g --output-dir $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR/glfw/src -L $DEBUG_BUILD_DIR/volk -D SF_DEBUG"
-  if [ $IS_VERBOSE -eq 1 ]; then
+  C3_OPTS+="-L $DEBUG_BUILD_DIR -L $DEBUG_BUILD_DIR/glfw/src -L $DEBUG_BUILD_DIR/volk"
+  if [ $IS_VERBOSE == 1 ]; then
     echo "c3 options are: $C3_OPTS"
   fi
 
   CMAKE_OPTS+="-DCMAKE_BUILD_TYPE=Debug "
   [ -d "$DEBUG_BUILD_DIR" ] || mkdir "$DEBUG_BUILD_DIR"
   # assets
-  if [ $COPY_ASSETS -eq 1 ]; then
-    [ -d "$DEBUG_BUILD_DIR/assets" ] || mkdir -p "$DEBUG_BUILD_DIR/assets"
-    cp -r "$ASSETS_SRC_DIR" "$DEBUG_BUILD_DIR/assets"
+  if [ $COPY_ASSETS == 1 ]; then
+    cp -r "$ASSETS_SRC_DIR" "$DEBUG_BUILD_DIR"
   fi
   # shaders
-  if [ $COMPILE_SHADERS -eq 1 ]; then
+  if [ $COMPILE_SHADERS == 1 ]; then
     [ -d "$DEBUG_BUILD_DIR/shaders" ] || mkdir -p "$DEBUG_BUILD_DIR/shaders"
     CMAKE_OPTS+="-DBUILD_SHADERS=ON "
   fi
   cd "$DEBUG_BUILD_DIR"
   cmake $CMAKE_OPTS ../../ && cmake --build . $CMAKE_BUILD_OPTS
   cd ../../
-  c3c build $C3_OPTS
+  c3c build $DEBUG_TARGET $C3_OPTS
 
 # Release
 else
   echo "Building in RELEASE mode"
-  C3_OPTS+="-O5 -g0 --safe=no --output-dir $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR/glfw/src -L $RELEASE_BUILD_DIR/volk -D SF_RELEASE "
-  if [ $IS_VERBOSE -eq 1 ]; then
+  C3_OPTS+="-L $RELEASE_BUILD_DIR -L $RELEASE_BUILD_DIR/glfw/src -L $RELEASE_BUILD_DIR/volk"
+  if [ $IS_VERBOSE == 1 ]; then
     echo "c3 options are: $C3_OPTS"
   fi
 
   CMAKE_OPTS+="-DCMAKE_BUILD_TYPE=Release "
   [ -d "$RELEASE_BUILD_DIR" ] || mkdir "$RELEASE_BUILD_DIR"
   # assets
-  if [ $COPY_ASSETS -eq 1 ]; then
-    [ -d "$RELEASE_BUILD_DIR/assets" ] || mkdir -p "$RELEASE_BUILD_DIR/assets"
-    cp -r "$ASSETS_SRC_DIR" "$RELEASE_BUILD_DIR/assets"
+  if [ $COPY_ASSETS == 1 ]; then
+    cp -r "$ASSETS_SRC_DIR" "$RELEASE_BUILD_DIR"
   fi
   # shaders
-  if [ $COMPILE_SHADERS -eq 1 ]; then
+  if [ $COMPILE_SHADERS == 1 ]; then
     [ -d "$RELEASE_BUILD_DIR/shaders" ] || mkdir -p "$RELEASE_BUILD_DIR/shaders"
     CMAKE_OPTS+="-DBUILD_SHADERS=ON "
   fi
   cd "$RELEASE_BUILD_DIR"
   cmake $CMAKE_OPTS ../../ && cmake --build . $CMAKE_BUILD_OPTS
   cd ../../
-  c3c build $C3_OPTS
+
+  if [ $IS_SAFE == 1 ]; then
+    c3c build $RELEASE_SAFE_TARGET $C3_OPTS
+  else
+    c3c build $RELEASE_FAST_TARGET $C3_OPTS
+  fi
 fi

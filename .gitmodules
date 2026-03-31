@@ -10,12 +10,6 @@
 	branch = main
 	fetchRecurseSubmodules = false
 	shallow = true
-[submodule "src/dependencies/arena_alloc"]
-	path = src/dependencies/arena_alloc
-	url = git@github.com:nyr24/arena_alloc_c3.git
-	branch = main
-	fetchRecurseSubmodules = false
-	shallow = true
 [submodule "src/dependencies/serializer"]
 	path = src/dependencies/serializer
 	url = git@github.com:nyr24/serializer_c3.git
@@ -25,4 +19,11 @@
 [submodule "src/dependencies/stb_c3"]
 	path = src/dependencies/stb_c3
 	url = git@github.com:nyr24/stb_c3.git
+	branch = main
+[submodule "lib/glfw"]
+	path = lib/glfw
+	url = git@github.com:glfw/glfw.git
+[submodule "src/dependencies/custom_allocs"]
+	path = src/dependencies/custom_allocs
+	url = git@github.com:nyr24/custom_allocs_c3.git
 	branch = main

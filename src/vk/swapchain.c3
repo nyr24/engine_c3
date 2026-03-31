@@ -8,12 +8,13 @@ import logger;
 
 const MAX_SWAPCHAIN_IMG_CNT = 5u;
 
-faultdef FAILED_TO_ACQUIRE_NEXT_IMAGE_INDEX;
+faultdef SWAPCHAIN_FAILED_TO_FIND_FORMAT
+;
 
 struct VulkanSwapchain
 {
-	ElasticArray {VkImage, MAX_SWAPCHAIN_IMG_CNT} images;
-	ElasticArray {VkImageView, MAX_SWAPCHAIN_IMG_CNT} image_views;
+	ElasticArray{VkImage, MAX_SWAPCHAIN_IMG_CNT} images;
+	ElasticArray{VkImageView, MAX_SWAPCHAIN_IMG_CNT} image_views;
 	VulkanImage depth_image;
 	VkSwapchainKHR handle;
 	VkPresentModeKHR present_mode;
@@ -30,22 +31,18 @@ enum SwapchainPresentRes
 	NEEDS_RECREATION_CANT_PROCEED,
 }
 
-faultdef
-	SWAPCHAIN_FAILED_TO_FIND_FORMAT, SWAPCHAIN_FAILED_TO_CREATE_DEPTH_IMAGE
-;
-
 fn void? VulkanSwapchain.init(&swapchain, VulkanContext* ctx, VkExtent2D extent)
 {
 	swapchain.recreation_scheduled = false;
-	if (catch excuse = ctx.swapchain.acquire_format_and_present_mode(&ctx.dev.swapchain_supp_info))
+	if (catch err = ctx.swapchain.acquire_format_and_present_mode(&ctx.dev.swapchain_supp_info))
 	{
 		logger::logn(FATAL, "Failed to acquire appropriate format for swapchain");
-		return excuse~;
+		return err~;
 	}
-	if (catch excuse = swapchain.create_inner(ctx, extent))
+	if (catch err = swapchain.create_inner(ctx, extent))
 	{
 		logger::logn(FATAL, "Failed create swapchain");
-		return excuse~;
+		return err~;
 	}
 }
 
@@ -78,8 +75,7 @@ fn SwapchainPresentRes VulkanSwapchain.acquire_next_image_index(
 		case vk::SUCCESS:
 			return SUCCESS;
 		case vk::SUBOPTIMAL_KHR:
-			VkExtent2D new_coords @noinit;
-			ctx.app_ctx.window.get_screen_coordinates(&new_coords);
+			VkExtent2D new_coords = ctx.app_ctx.window.get_screen_coordinates();
 			VkExtent2D curr_coords = ctx.renderer.get_extent();
 			if (new_coords != curr_coords)
 			{
@@ -122,8 +118,7 @@ fn SwapchainPresentRes VulkanSwapchain.present(
 		case vk::SUCCESS:
 			return SUCCESS;
 		case vk::SUBOPTIMAL_KHR:
-			VkExtent2D new_coords @noinit;
-			ctx.app_ctx.window.get_screen_coordinates(&new_coords);
+			VkExtent2D new_coords = ctx.app_ctx.window.get_screen_coordinates();
 			VkExtent2D prev_coords = ctx.renderer.scissors.extent;
 			if (new_coords != prev_coords)
 			{
@@ -157,7 +152,7 @@ fn void VulkanSwapchain.recreate_if_needed(&swapchain, VulkanContext* ctx)
 		logger::logn(INFO, "Recreating swapchain, new screen coordinates: %d %d", new_coords.width, new_coords.height);
 		swapchain.recreate(ctx, new_coords)!!;
 		swapchain.recreation_scheduled = false;
-		ctx.renderer.resize_scheduled = true;
+		ctx.renderer.window_events.resize_scheduled = true;
 	}
 }
 
@@ -196,7 +191,7 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		.compositeAlpha = vk::COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		.presentMode = swapchain.present_mode,
 		.oldSwapchain = swapchain.handle,
-	};
+		};
 
 	if (dev.queue_indices.graphics.fam != dev.queue_indices.present.fam)
 	{
@@ -214,10 +209,10 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		swapchain_ci.pQueueFamilyIndices = null;
 	}
 
-	vk_check(vk::createSwapchainKHR(dev.log_dev, &swapchain_ci, ctx.vk_alloc, &ctx.swapchain.handle));
+	check(vk::createSwapchainKHR(dev.log_dev, &swapchain_ci, ctx.vk_alloc, &ctx.swapchain.handle));
 
 	uint actual_image_cnt @noinit;
-	vk_check(vk::getSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, null));
+	check(vk::getSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, null));
 
 	actual_image_cnt = math::min(MAX_SWAPCHAIN_IMG_CNT, actual_image_cnt);
 	if (swapchain.images.size != actual_image_cnt)
@@ -229,11 +224,11 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		swapchain.image_views.resize(actual_image_cnt);
 	}
 
-	vk_check(vk::getSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, swapchain.images.data()));
+	check(vk::getSwapchainImagesKHR(dev.log_dev, swapchain.handle, &actual_image_cnt, swapchain.images.data()));
 
 	foreach (usz ind, &view : swapchain.image_views)
 	{
-		*view = create_view_from_raw(ctx, swapchain.images[ind], swapchain.surface_fmt.format);
+		*view = create_view_from_raw_image(ctx, swapchain.images[ind], swapchain.surface_fmt.format);
 	}
 
 	if (!dev.detect_depth_format())
@@ -243,9 +238,8 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		return SWAPCHAIN_FAILED_TO_FIND_FORMAT~;
 	}
 
-	if (!create_image(
+	swapchain.depth_image.init(
 		ctx,
-		&swapchain.depth_image,
 		dev.depth_fmt,
 		extent.width,
 		extent.height,
@@ -254,11 +248,7 @@ fn void? VulkanSwapchain.create_inner(&swapchain, VulkanContext* ctx, VkExtent2D
 		vk::IMAGE_ASPECT_DEPTH_BIT,
 		vk::IMAGE_LAYOUT_UNDEFINED,
 		vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-	))
-	{
-		logger::logn(FATAL, "Failed to create a depth image");
-		return SWAPCHAIN_FAILED_TO_CREATE_DEPTH_IMAGE~;
-	}
+	);
 
 	swapchain.curr_image_index = 0;
 	logger::logn(INFO, "Swapchain created successfully!");

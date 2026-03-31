@@ -1,5 +1,5 @@
 {
-  "langrev": "0.7.10",
+  "langrev": "0.7.11",
   "warnings":  [ "no-unused" ],
   "dependency-search-paths":  [ "lib" ],
   "dependencies":  [  ],
@@ -9,12 +9,33 @@
   "c-sources": [ "src/**" ],
   "test-sources":  [ "test/**" ],
   "build-dir": "build",
-  "output": "build/debug",
   "targets": {
-    "game_engine": {
-      "type": "executable"
+    "debug": {
+      "opt": "O0",
+      "debug-info": "full",
+      "type": "executable",
+      "output": "build/debug/",
+      "cflags": "-O0 -D STB_IMAGE_IMPLEMENTATION=1",
+      "features": ["SF_DEBUG"],
+    },
+    "release_safe": {
+      "opt": "O2",
+      "debug-info": "none",
+      "safe": true,
+      "type": "executable",
+      "output": "build/release/",
+      "cflags": "-O3 -D STB_IMAGE_IMPLEMENTATION=1",
+      "features": ["SF_RELEASE"],
+    },
+    "release_fast": {
+      "opt": "O5",
+      "debug-info": "none",
+      "safe": false,
+      "type": "executable",
+      "output": "build/release/",
+      "cflags": "-O3 -D STB_IMAGE_IMPLEMENTATION=1",
+      "features": ["SF_RELEASE"],
     }
   },
   "cpu": "generic",
-  "opt": "O0"
 }

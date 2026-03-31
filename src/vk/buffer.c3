@@ -16,7 +16,7 @@ struct VulkanBuffer
 	usz size;
 }
 
-fn VulkanBuffer? create_buffer(
+fn VulkanBuffer? create_vk_buffer(
 	VulkanContext* ctx,
 	VkDeviceSize size,
 	VkBufferUsageFlagBits usage,
@@ -45,7 +45,7 @@ fn void VulkanBuffer.init(
 		.sharingMode = sharing_mode,
 	};
 
-	vk_check(vk::createBuffer(ctx.dev.log_dev, &buff_ci, ctx.vk_alloc, &buff.handle));
+	check(vk::createBuffer(ctx.dev.log_dev, &buff_ci, ctx.vk_alloc, &buff.handle));
 
 	VkMemoryRequirements mem_reqs @noinit;
 	vk::getBufferMemoryRequirements(ctx.dev.log_dev, buff.handle, &mem_reqs);
@@ -61,8 +61,8 @@ fn void VulkanBuffer.init(
 		.memoryTypeIndex = memory_index,
 	};
 
-	vk_check(vk::allocateMemory(ctx.dev.log_dev, &alloc_info, ctx.vk_alloc, &buff.mem));
-	vk_check(vk::bindBufferMemory(ctx.dev.log_dev, buff.handle, buff.mem, 0));
+	check(vk::allocateMemory(ctx.dev.log_dev, &alloc_info, ctx.vk_alloc, &buff.mem));
+	check(vk::bindBufferMemory(ctx.dev.log_dev, buff.handle, buff.mem, 0));
 	buff.size = size;
 }
 
@@ -118,7 +118,7 @@ struct VulkanElementBuffer <IndexType>
 }
 
 <*
- @require IndexType.kindof == UNSIGNED_INT : "Type should be unsigned integer"
+ @require IndexType::kind == UNSIGNED_INT : "Type should be unsigned integer"
 *>
 fn void? init_elem_buffer(
 	VulkanElementBuffer* elem_buff,
@@ -127,8 +127,8 @@ fn void? init_elem_buffer(
 	IndexType[] indices,
 ) <IndexType>
 {
-	uint vertices_size_bytes = (uint)(vertices.len * Vertex.sizeof);
-	uint indices_size_bytes = (uint)(indices.len * IndexType.sizeof);
+	uint vertices_size_bytes = (uint)(vertices.len * Vertex::size);
+	uint indices_size_bytes = (uint)(indices.len * IndexType::size);
 	uint capacity_bytes = vertices_size_bytes + indices_size_bytes;
 
 	elem_buff.staging_buff.init(
@@ -168,7 +168,7 @@ fn void? init_elem_buffer(
 	elem_buff.all_size_bytes = capacity_bytes;
 }
 
-fn void VulkanElementBuffer.bind(&elem_buff, VulkanCmdBuffer cmd_buffer, VkDeviceSize[] offsets = {0})
+fn void VulkanElementBuffer.cmd_bind(&elem_buff, VulkanCmdBuffer cmd_buffer, VkDeviceSize[] offsets = {0})
 {
 	vk::cmdBindVertexBuffers(
 		cmd_buffer.handle,
@@ -192,8 +192,8 @@ fn uint VulkanElementBuffer.indices_size_bytes(&elem_buff) @inline
 
 macro uint VulkanElementBuffer.indices_count(&elem_buff)
 {
-	$if IndexType.sizeof > char.sizeof:
-		return elem_buff.indices_size_bytes() / IndexType.sizeof;
+	$if IndexType::size > char::size:
+		return elem_buff.indices_size_bytes() / IndexType::size;
 	$else
 		return elem_buff.indices_size_bytes();
 	$endif
@@ -217,13 +217,13 @@ fn usz vk_index_sizeof(VkIndexType vk_ind) @inline @local
 	switch (vk_ind)
 	{
 		case vk::INDEX_TYPE_UINT8:
-			return char.sizeof;
+			return char::size;
 		case vk::INDEX_TYPE_UINT16:
-			return ushort.sizeof;
+			return ushort::size;
 		case vk::INDEX_TYPE_UINT32:
-			return uint.sizeof;
+			return uint::size;
 		default:
-			return uint.sizeof;
+			return uint::size;
 	}
 }
 
@@ -282,7 +282,7 @@ struct LocalUniformData
 // {
 // 	ubo.buffer.init(
 // 		ctx,
-// 		GlobalUniformData.sizeof,
+// 		GlobalUniformData::size,
 // 		vk::BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 // 		vk::SHARING_MODE_EXCLUSIVE,
 // 		vk::MEMORY_PROPERTY_DEVICE_LOCAL_BIT
@@ -294,7 +294,7 @@ struct LocalUniformData
 // 		ctx.dev.log_dev,
 // 		ubo.buffer.mem,
 // 		0,
-// 		GlobalUniformData.sizeof,
+// 		GlobalUniformData::size,
 // 		0,
 // 		&ubo.mapped_mem
 // 	)
@@ -313,7 +313,7 @@ struct LocalUniformData
 // 	mem::copy(
 // 		ubo.mapped_mem,
 // 		&ubo.uniform_data,
-// 		GlobalUniformData.sizeof
+// 		GlobalUniformData::size
 // 	);
 // }
 
@@ -325,7 +325,7 @@ struct LocalUniformData
 // 			+ $offsetof(ubo.uniform_data.view),
 // 		(char*)&ubo.uniform_data
 // 			+ $offsetof(ubo.uniform_data.view),
-// 		Mat4.sizeof
+// 		Mat4::size
 // 	);
 // }
 
@@ -337,7 +337,7 @@ struct LocalUniformData
 // 			+ $offsetof(ubo.uniform_data.proj),
 // 		(char*)&ubo.uniform_data
 // 			+ $offsetof(ubo.uniform_data.proj),
-// 		Mat4.sizeof
+// 		Mat4::size
 // 	);
 // }
 

@@ -1,14 +1,22 @@
-EXE_NAME="game_engine"
-DEBUG_EXE_PATH="build/debug/${EXE_NAME}"
-RELEASE_EXE_PATH="build/release/${EXE_NAME}"
-RUN_RELEASE=0
+RELEASE=0
+SAFE=0
 
-if [ $# -gt 0 ] && [ "$1" == "-r" ] || [ "$1" == "--release" ]; then
-  RUN_RELEASE=1
-fi
+for arg in "$@"; do
+  case "$arg" in
+  -r | -release)
+    RELEASE=1
+    ;;
+  -s | -safe)
+    SAFE=1
+    ;;
+  esac
+done
 
-if [ $RUN_RELEASE == 0 ]; then
-  $DEBUG_EXE_PATH
+
+if [ $RELEASE == 0 ]; then
+  ./build/debug/debug
+elif [ $SAFE == 1 ]; then
+  ./build/release/release_safe
 else
-  $RELEASE_EXE_PATH
+  ./build/release/release_fast
 fi

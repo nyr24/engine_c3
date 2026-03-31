@@ -18,7 +18,7 @@ fn void VulkanSemaphore.init(&sem, VulkanContext* ctx)
     VkSemaphoreCreateInfo semaphore_ci = {
         .sType = vk::STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
     };
-    vk_check(vk::createSemaphore(ctx.dev.log_dev, &semaphore_ci, ctx.vk_alloc, &sem.handle));
+    check(vk::createSemaphore(ctx.dev.log_dev, &semaphore_ci, ctx.vk_alloc, &sem.handle));
 }
 
 fn void VulkanSemaphore.destroy(&sem, VulkanContext* ctx)
@@ -47,7 +47,7 @@ fn void VulkanFence.init(&fence, VulkanContext* ctx, bool init_singaled = false)
     if (init_singaled) {
         fence_ci.flags = vk::FENCE_CREATE_SIGNALED_BIT;
     }
-    vk_check(vk::createFence(ctx.dev.log_dev, &fence_ci, null, &fence.handle));
+    check(vk::createFence(ctx.dev.log_dev, &fence_ci, null, &fence.handle));
 }
 
 <*
@@ -58,7 +58,7 @@ fn void? VulkanFence.wait(&fence, VulkanContext* ctx)
     VkResult result = vk::TIMEOUT;
 
     while (true) {
-        result = vk::waitForFences(ctx.dev.log_dev, 1u, &fence.handle, vk::TRUE, ulong.max);
+        result = vk::waitForFences(ctx.dev.log_dev, 1u, &fence.handle, vk::TRUE, ulong::max);
         if (result != vk::TIMEOUT) {
             break;
         }
@@ -78,7 +78,7 @@ fn void VulkanFence.reset(&fence, VulkanContext* ctx)
         return;
     }
     
-    vk_check(vk::resetFences(ctx.dev.log_dev, 1u, &fence.handle));
+    check(vk::resetFences(ctx.dev.log_dev, 1u, &fence.handle));
     fence.is_signaled = false;
 }
 

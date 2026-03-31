@@ -2,9 +2,11 @@ module engine;
 
 import std::math;
 import glfw;
+// NOTE: DEBUG
+import logger;
 
 const float DEFAULT_CAMERA_SPEED = 250.0f;
-const float CAMERA_ZOOM_SPEED = 2.5f;
+const float CAMERA_ZOOM_SPEED = 1.0f;
 const float CAMERA_ZOOM_MIN = 0.1f;
 const float CAMERA_ZOOM_MAX = 300.0f;
 
@@ -17,7 +19,7 @@ struct Camera
 	float yaw;
 	float pitch;
 	float speed;
-// TODO: make in radians
+	// TODO: make it in radians
 	float zoom;
 	MouseSensivity mouse_sensivity;
 	bool dirty;
@@ -113,4 +115,9 @@ fn void Camera.recalc_state(&cam, float delta_x, float delta_y)
 	cam.target = cam.target.normalize();
 	cam.right = cam.target.cross(V3_TOP).normalize();
 	cam.up = cam.right.cross(cam.target).normalize();
+}
+
+fn void Camera.debug_log(&cam) @if($feature(SF_DEBUG))
+{
+	logger::logn(DEBUG, "Camera\n\tpos: %s,\n\tdir: %s,\n\tup: %s,\n\tright: %s", cam.pos, cam.target, cam.up, cam.right);
 }

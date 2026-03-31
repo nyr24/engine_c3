@@ -3,7 +3,7 @@ module engine::vk;
 import vk;
 import logger;
 
-macro void vk_check(VkResult r)
+macro void check(VkResult r)
 {
     if (r != vk::SUCCESS) {
 		$if ($feature(SF_DEBUG)):

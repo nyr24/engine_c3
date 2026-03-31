@@ -29,19 +29,19 @@ const M3_COLS = 3;
 // }
 
 // GLM version
-// fn Mat4 perspective_glm(float fovy, float aspect, float zNear, float zFar)
-// {
-// 	float tanHalfFovy = math::tan(fovy / 2);
-// 	Mat4 res;
+fn Mat4 perspective_glm(float fovy, float aspect, float zNear, float zFar)
+{
+	float tanHalfFovy = math::tan(fovy / 2);
+	Mat4 res;
 
-// 	res.m00 = 1 / (aspect * tanHalfFovy);
-// 	res.m11 = 1 / (tanHalfFovy);
-// 	res.m22 = zFar / (zNear - zFar);
-// 	res.m32 = -1;
-// 	res.m23 = (zFar * zNear) / (zNear - zFar);
+	res.m00 = 1 / (aspect * tanHalfFovy);
+	res.m11 = 1 / (tanHalfFovy);
+	res.m22 = zFar / (zNear - zFar);
+	res.m32 = -1;
+	res.m23 = (zFar * zNear) / (zNear - zFar);
 
-// 	return res;
-// }
+	return res;
+}
 
 
 // ------- All glm matrices -------->
